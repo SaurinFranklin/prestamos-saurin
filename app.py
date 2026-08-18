@@ -47,7 +47,6 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
             for p_item in p["pagos"]
         ]) if p["pagos"] else "<li class='list-group-item bg-dark text-muted border-secondary small py-1'>Sin abonos registrados</li>"
 
-        # Opciones si el préstamo ya fue cancelado
         if p["saldo"] <= 0:
             badge_color = "bg-primary"
             estado_texto = "PAID - Cancelado"
@@ -104,7 +103,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
 
                     {seccion_abono}
                 </div>
-                <div class='card-footer border-secondary bg-black bg-opacity-25 d-flex justify-content-between align-items-center solo-admin py-2'>
+                <div class='card-footer border-secondary bg-black bg-opacity-25 d-flex justify-content-between align-items-center solo-admin py-2' style='display: none;'>
                     <form action='/eliminar' method='post' onsubmit='return confirm("¿Eliminar préstamo?");' class='m-0 w-100'>
                         <input type='hidden' name='p_id' value='{p["id"]}'>
                         <button type='submit' class='btn btn-outline-danger btn-sm w-100 py-1'>🗑️ Eliminar Préstamo</button>
@@ -114,7 +113,6 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
         </div>
         """
 
-    # Alerta de comprobante
     alerta_html = ""
     if mensaje and ultimo_pago:
         msg_wsp = (
@@ -128,13 +126,13 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
         msg_encoded = urllib.parse.quote(msg_wsp)
 
         alerta_html = f"""
-        <div class="alert alert-success alert-dismissible fade show p-3 mb-4 shadow d-print-block bg-dark text-white border-success" role="alert" id="comprobante-alerta">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 pe-4">
+        <div class="alert alert-success alert-dismissible fade show p-3 mb-4 shadow bg-dark text-white border-success position-relative" role="alert" id="comprobante-alerta">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 pe-5 d-print-none">
                 <div>
                     <strong class="text-success fs-6">✅ {mensaje}</strong><br>
                     <span class="text-light small">Cliente: <b class="text-white">{ultimo_pago['deudor']}</b> | Saldo Restante: <b class="text-warning">S/ {ultimo_pago['saldo']:.2f}</b></span>
                 </div>
-                <div class="d-flex gap-2 d-print-none">
+                <div class="d-flex gap-2">
                     <a href="https://api.whatsapp.com/send?text={msg_encoded}" target="_blank" class="btn btn-sm btn-success fw-bold">
                         📲 Enviar WhatsApp
                     </a>
@@ -144,6 +142,36 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
                 </div>
             </div>
             <button type="button" class="btn-close btn-close-white d-print-none ms-2" data-bs-dismiss="alert" aria-label="Close"></button>
+
+            <!-- Formato de Boleta para Impresión / PDF -->
+            <div class="d-none d-print-block p-3 text-black">
+                <h4 class="text-center fw-bold mb-1">🧾 BOLETA DE COMPROBANTE DE PAGO</h4>
+                <div class="text-center small mb-3"><strong>Empresa:</strong> Préstamos Saurin</div>
+                <hr class="my-2">
+                <div class="row small mb-2">
+                    <div class="col-6"><strong>Código:</strong> {ultimo_pago.get('id', 'PRES-101')}</div>
+                    <div class="col-6 text-end"><strong>Fecha:</strong> 2026-08-18</div>
+                    <div class="col-6"><strong>Cliente:</strong> {ultimo_pago['deudor']}</div>
+                    <div class="col-6 text-end"><strong>Modalidad:</strong> {ultimo_pago.get('modalidad', 'Diario')}</div>
+                </div>
+                <table class="table table-bordered table-sm my-3 border-dark">
+                    <thead class="table-light border-dark">
+                        <tr>
+                            <th>Concepto</th>
+                            <th class="text-end">Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Abono a Préstamo #{ultimo_pago.get('id', 'PRES-101')}</td>
+                            <td class="text-end fw-bold">S/ {ultimo_pago['monto']:.2f}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="text-end fw-bold fs-6 mt-2">
+                    Saldo Restante: S/ {ultimo_pago['saldo']:.2f}
+                </div>
+            </div>
         </div>
         """
     elif mensaje:
@@ -165,14 +193,13 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
             
             @media print {{
                 body {{ background-color: #ffffff !important; color: #000000 !important; }}
-                .d-print-none, .row, .border-bottom {{ display: none !important; }}
+                .d-print-none {{ display: none !important; }}
+                .d-print-block {{ display: block !important; }}
                 #comprobante-alerta {{
-                    display: block !important;
                     background-color: #ffffff !important;
                     color: #000000 !important;
                     border: 2px solid #000000 !important;
-                    padding: 20px !important;
-                    font-size: 16px !important;
+                    box-shadow: none !important;
                 }}
             }}
         </style>
@@ -183,7 +210,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
                 <h2 class="fw-bold text-info m-0 fs-4">💼 Préstamos Saurin</h2>
                 <div class="d-flex align-items-center gap-2">
                     <label class="small text-muted d-none d-sm-inline">Perfil:</label>
-                    <select id="select-perfil" class="form-select form-select-sm bg-dark text-white border-info" onchange="cambiarPerfil()">
+                    <select id="select-perfil" class="form-select form-select-sm bg-dark text-white border-info">
                         <option value="cobrador">Cobrador (Solo Registro)</option>
                         <option value="admin">Administrador (Control Total)</option>
                     </select>
@@ -192,8 +219,8 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
 
             {alerta_html}
 
-            <div class="row">
-                <div class="col-lg-4 mb-4 solo-admin">
+            <div class="row d-print-none">
+                <div class="col-lg-4 mb-4 solo-admin" style="display: none;">
                     <div class="card bg-dark text-white border-info shadow">
                         <div class="card-header bg-info bg-opacity-10 border-info py-2">
                             <h5 class="m-0 text-info fs-6">+ Nuevo Préstamo</h5>
@@ -244,7 +271,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
                     </div>
                 </div>
 
-                <div class="col-lg-8" id="contenedor-prestamos">
+                <div class="col-lg-12" id="contenedor-prestamos">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="m-0 text-white">Lista de Préstamos</h5>
                         <input type="text" id="buscador" class="form-control form-control-sm w-50 bg-dark text-white border-secondary" placeholder="🔍 Buscar cliente..." onkeyup="filtrarClientes()">
@@ -259,31 +286,39 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script>
-            function cambiarPerfil() {{
-                const perfil = document.getElementById('select-perfil').value;
-                const admins = document.querySelectorAll('.solo-admin');
-                const colPrestamos = document.getElementById('contenedor-prestamos');
+            document.addEventListener("DOMContentLoaded", function() {{
+                const selectorPerfil = document.getElementById('select-perfil');
+                
+                // Forzar inicio en cobrador
+                selectorPerfil.value = 'cobrador';
+                aplicarModoCobrador();
 
-                if (perfil === 'Saurin.1903') {{
-                    const clave = prompt("Ingrese la clave de Administrador:");
-                    if (clave === "admin") {{
-                        admins.forEach(el => el.style.display = 'block');
-                        colPrestamos.className = "col-lg-8";
+                selectorPerfil.addEventListener('change', function() {{
+                    const perfil = this.value;
+                    const admins = document.querySelectorAll('.solo-admin');
+                    const colPrestamos = document.getElementById('contenedor-prestamos');
+
+                    if (perfil === 'admin') {{
+                        const clave = prompt("Ingrese la clave de Administrador:");
+                        if (clave === "Saurin.1903") {{
+                            admins.forEach(el => el.style.display = 'block');
+                            colPrestamos.className = "col-lg-8";
+                        }} else {{
+                            if (clave !== null) alert("Clave incorrecta");
+                            selectorPerfil.value = 'cobrador';
+                            aplicarModoCobrador();
+                        }}
                     }} else {{
-                        alert("Clave incorrecta");
-                        document.getElementById('select-perfil').value = 'cobrador';
                         aplicarModoCobrador();
                     }}
-                }} else {{
-                    aplicarModoCobrador();
-                }}
-            }}
+                }});
+            }});
 
             function aplicarModoCobrador() {{
                 const admins = document.querySelectorAll('.solo-admin');
                 const colPrestamos = document.getElementById('contenedor-prestamos');
                 admins.forEach(el => el.style.display = 'none');
-                colPrestamos.className = "col-lg-12";
+                if (colPrestamos) colPrestamos.className = "col-lg-12";
             }}
 
             function filtrarClientes() {{
@@ -294,8 +329,6 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
                     item.style.display = nombre.includes(query) ? 'block' : 'none';
                 }});
             }}
-
-            aplicarModoCobrador();
         </script>
     </body>
     </html>
@@ -335,9 +368,11 @@ def abonar_prestamo(p_id: str = Form(...), monto_abono: float = Form(...)):
             p["pagos"].append({"fecha": "2026-08-18", "monto": monto_real, "registrado_por": "Cobrador"})
             
             info_pago = {
+                "id": p["id"],
                 "deudor": p["deudor"],
                 "monto": monto_real,
-                "saldo": p["saldo"]
+                "saldo": p["saldo"],
+                "modalidad": p["modalidad"]
             }
             return obtener_html(f"Abono de S/ {monto_real:.2f} registrado.", ultimo_pago=info_pago)
     return obtener_html("Error al registrar abono.")
