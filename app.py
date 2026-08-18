@@ -4,7 +4,7 @@ import urllib.parse
 
 app = FastAPI()
 
-# Base de datos temporal
+# Base de datos temporal con préstamos iniciales
 prestamos = [
     {
         "id": "PRES-101",
@@ -13,11 +13,25 @@ prestamos = [
         "monto": 300.0,
         "interes": 10.0,
         "total": 330.0,
-        "saldo": 0.0,
+        "saldo": 210.0,
         "modalidad": "Diario",
         "estado": "Cliente Puntual",
         "pagos": [
-            {"fecha": "2026-08-18", "monto": 330.0, "registrado_por": "Cobrador"}
+            {"fecha": "2026-08-18", "monto": 120.0, "registrado_por": "Cobrador"}
+        ]
+    },
+    {
+        "id": "PRES-102",
+        "deudor": "Marufith",
+        "moneda": "Soles (S/)",
+        "monto": 1000.0,
+        "interes": 10.0,
+        "total": 1100.0,
+        "saldo": 100.0,
+        "modalidad": "Diario",
+        "estado": "Cliente Puntual",
+        "pagos": [
+            {"fecha": "2026-08-18", "monto": 1000.0, "registrado_por": "Cobrador"}
         ]
     }
 ]
@@ -33,7 +47,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
             for p_item in p["pagos"]
         ]) if p["pagos"] else "<li class='list-group-item bg-dark text-muted border-secondary small py-1'>Sin abonos registrados</li>"
 
-        # Deshabilitar cobro si ya se pagó todo
+        # Opciones si el préstamo ya fue cancelado
         if p["saldo"] <= 0:
             badge_color = "bg-primary"
             estado_texto = "PAID - Cancelado"
@@ -100,7 +114,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
         </div>
         """
 
-    # Alerta de comprobante con texto visible y separación de la X
+    # Alerta de comprobante
     alerta_html = ""
     if mensaje and ultimo_pago:
         msg_wsp = (
@@ -149,7 +163,6 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
             .card:hover {{ transform: translateY(-2px); }}
             .extra-small {{ font-size: 0.8rem; }}
             
-            /* Estilos de impresión PDF */
             @media print {{
                 body {{ background-color: #ffffff !important; color: #000000 !important; }}
                 .d-print-none, .row, .border-bottom {{ display: none !important; }}
@@ -166,7 +179,6 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
     </head>
     <body class="text-light">
         <div class="container py-4">
-            <!-- Navbar Header -->
             <div class="d-flex justify-content-between align-items-center pb-3 mb-4 border-bottom border-secondary d-print-none">
                 <h2 class="fw-bold text-info m-0 fs-4">💼 Préstamos Saurin</h2>
                 <div class="d-flex align-items-center gap-2">
@@ -181,7 +193,6 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
             {alerta_html}
 
             <div class="row">
-                <!-- Panel Crear Préstamo (Solo Admin) -->
                 <div class="col-lg-4 mb-4 solo-admin">
                     <div class="card bg-dark text-white border-info shadow">
                         <div class="card-header bg-info bg-opacity-10 border-info py-2">
@@ -233,7 +244,6 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
                     </div>
                 </div>
 
-                <!-- Lista de Préstamos -->
                 <div class="col-lg-8" id="contenedor-prestamos">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="m-0 text-white">Lista de Préstamos</h5>
