@@ -33,7 +33,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
             for p_item in p["pagos"]
         ]) if p["pagos"] else "<li class='list-group-item bg-dark text-muted border-secondary small py-1'>Sin abonos registrados</li>"
 
-        # Estado visual o de cancelación
+        # Deshabilitar cobro si ya se pagó todo
         if p["saldo"] <= 0:
             badge_color = "bg-primary"
             estado_texto = "PAID - Cancelado"
@@ -100,7 +100,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
         </div>
         """
 
-    # Alerta de cobro
+    # Alerta de comprobante con texto visible y separación de la X
     alerta_html = ""
     if mensaje and ultimo_pago:
         msg_wsp = (
@@ -114,26 +114,26 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
         msg_encoded = urllib.parse.quote(msg_wsp)
 
         alerta_html = f"""
-        <div class="alert alert-success alert-dismissible fade show p-3 mb-4 shadow d-print-block" role="alert" id="comprobante-alerta">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="alert alert-success alert-dismissible fade show p-3 mb-4 shadow d-print-block bg-dark text-white border-success" role="alert" id="comprobante-alerta">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 pe-4">
                 <div>
-                    <strong>✅ {mensaje}</strong><br>
-                    <small class="text-dark">Cliente: <b>{ultimo_pago['deudor']}</b> | Saldo Restante: <b>S/ {ultimo_pago['saldo']:.2f}</b></small>
+                    <strong class="text-success fs-6">✅ {mensaje}</strong><br>
+                    <span class="text-light small">Cliente: <b class="text-white">{ultimo_pago['deudor']}</b> | Saldo Restante: <b class="text-warning">S/ {ultimo_pago['saldo']:.2f}</b></span>
                 </div>
                 <div class="d-flex gap-2 d-print-none">
-                    <a href="https://api.whatsapp.com/send?text={msg_encoded}" target="_blank" class="btn btn-sm btn-dark fw-bold">
+                    <a href="https://api.whatsapp.com/send?text={msg_encoded}" target="_blank" class="btn btn-sm btn-success fw-bold">
                         📲 Enviar WhatsApp
                     </a>
-                    <button onclick="window.print()" class="btn btn-sm btn-outline-dark fw-bold">
+                    <button onclick="window.print()" class="btn btn-sm btn-outline-light fw-bold">
                         🖨️ PDF / Imprimir
                     </button>
                 </div>
             </div>
-            <button type="button" class="btn-close d-print-none" data-bs-dismiss="alert"></button>
+            <button type="button" class="btn-close btn-close-white d-print-none ms-2" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
         """
     elif mensaje:
-        alerta_html = f'<div class="alert alert-warning alert-dismissible fade show small py-2 d-print-none" role="alert">{mensaje}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>'
+        alerta_html = f'<div class="alert alert-warning alert-dismissible fade show small py-2 d-print-none" role="alert">{mensaje}<button type="button" class="btn-close d-print-none" data-bs-dismiss="alert"></button></div>'
 
     return f"""
     <!DOCTYPE html>
@@ -149,6 +149,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
             .card:hover {{ transform: translateY(-2px); }}
             .extra-small {{ font-size: 0.8rem; }}
             
+            /* Estilos de impresión PDF */
             @media print {{
                 body {{ background-color: #ffffff !important; color: #000000 !important; }}
                 .d-print-none, .row, .border-bottom {{ display: none !important; }}
@@ -165,6 +166,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
     </head>
     <body class="text-light">
         <div class="container py-4">
+            <!-- Navbar Header -->
             <div class="d-flex justify-content-between align-items-center pb-3 mb-4 border-bottom border-secondary d-print-none">
                 <h2 class="fw-bold text-info m-0 fs-4">💼 Préstamos Saurin</h2>
                 <div class="d-flex align-items-center gap-2">
@@ -179,6 +181,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
             {alerta_html}
 
             <div class="row">
+                <!-- Panel Crear Préstamo (Solo Admin) -->
                 <div class="col-lg-4 mb-4 solo-admin">
                     <div class="card bg-dark text-white border-info shadow">
                         <div class="card-header bg-info bg-opacity-10 border-info py-2">
@@ -230,6 +233,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
                     </div>
                 </div>
 
+                <!-- Lista de Préstamos -->
                 <div class="col-lg-8" id="contenedor-prestamos">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="m-0 text-white">Lista de Préstamos</h5>
@@ -250,9 +254,9 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
                 const admins = document.querySelectorAll('.solo-admin');
                 const colPrestamos = document.getElementById('contenedor-prestamos');
 
-                if (perfil === 'admin') {{
+                if (perfil === 'Saurin.1903') {{
                     const clave = prompt("Ingrese la clave de Administrador:");
-                    if (clave === "Saurin.1903") {{
+                    if (clave === "admin") {{
                         admins.forEach(el => el.style.display = 'block');
                         colPrestamos.className = "col-lg-8";
                     }} else {{
@@ -316,7 +320,6 @@ def abonar_prestamo(p_id: str = Form(...), monto_abono: float = Form(...)):
             if p["saldo"] <= 0:
                 return obtener_html("⚠️ Este préstamo ya fue cancelado completamente.")
             
-            # Limitar abono al saldo máximo
             monto_real = min(monto_abono, p["saldo"])
             p["saldo"] = max(0.0, p["saldo"] - monto_real)
             p["pagos"].append({"fecha": "2026-08-18", "monto": monto_real, "registrado_por": "Cobrador"})
