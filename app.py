@@ -78,14 +78,19 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
                     <span class='badge {badge_color}'>{estado_texto}</span>
                 </div>
                 <div class='card-body py-3'>
-                    <div class='row mb-2 text-center'>
-                        <div class='col-6 border-end border-secondary'>
-                            <small class='text-muted d-block'>Total a Pagar</small>
-                            <strong class='fs-6 text-light'>S/ {p["total"]:.2f}</strong>
+                    <!-- Muestra de 3 columnas: Capital, Total con Interés y Saldo -->
+                    <div class='row mb-2 text-center g-1'>
+                        <div class='col-4 border-end border-secondary'>
+                            <small class='text-muted d-block extra-small'>Prestado</small>
+                            <strong class='small text-light'>S/ {p["monto"]:.2f}</strong>
                         </div>
-                        <div class='col-6'>
-                            <small class='text-muted d-block'>Saldo Restante</small>
-                            <strong class='fs-6 {"text-success" if p["saldo"] <= 0 else "text-danger"}'>S/ {p["saldo"]:.2f}</strong>
+                        <div class='col-4 border-end border-secondary'>
+                            <small class='text-muted d-block extra-small'>Total (+Int)</small>
+                            <strong class='small text-info'>S/ {p["total"]:.2f}</strong>
+                        </div>
+                        <div class='col-4'>
+                            <small class='text-muted d-block extra-small'>Saldo Restante</small>
+                            <strong class='small {"text-success" if p["saldo"] <= 0 else "text-danger"}'>S/ {p["saldo"]:.2f}</strong>
                         </div>
                     </div>
                     
@@ -125,6 +130,11 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
         )
         msg_encoded = urllib.parse.quote(msg_wsp)
 
+        monto_prestado = ultimo_pago.get('monto_prestado', 0.0)
+        interes_pct = ultimo_pago.get('interes', 0.0)
+        monto_interes = monto_prestado * (interes_pct / 100.0)
+        monto_total = ultimo_pago.get('total', 0.0)
+
         alerta_html = f"""
         <div class="alert alert-success alert-dismissible fade show p-3 mb-4 shadow bg-dark text-white border-success position-relative" role="alert" id="comprobante-alerta">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 pe-5 d-print-none">
@@ -143,22 +153,32 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
             </div>
             <button type="button" class="btn-close btn-close-white d-print-none ms-2" data-bs-dismiss="alert" aria-label="Close"></button>
 
-            <!-- Formato de Boleta para Impresión / PDF -->
+            <!-- Formato de Boleta Completo para Impresión / PDF -->
             <div class="d-none d-print-block p-3 text-black">
                 <h4 class="text-center fw-bold mb-1">🧾 BOLETA DE COMPROBANTE DE PAGO</h4>
                 <div class="text-center small mb-3"><strong>Empresa:</strong> Préstamos Saurin</div>
                 <hr class="my-2">
+                
                 <div class="row small mb-2">
                     <div class="col-6"><strong>Código:</strong> {ultimo_pago.get('id', 'PRES-101')}</div>
                     <div class="col-6 text-end"><strong>Fecha:</strong> 2026-08-18</div>
                     <div class="col-6"><strong>Cliente:</strong> {ultimo_pago['deudor']}</div>
                     <div class="col-6 text-end"><strong>Modalidad:</strong> {ultimo_pago.get('modalidad', 'Diario')}</div>
                 </div>
-                <table class="table table-bordered table-sm my-3 border-dark">
+
+                <div class="p-2 border border-secondary rounded bg-light small mb-3">
+                    <div class="row text-center">
+                        <div class="col-4">Monto Prestado: <strong>S/ {monto_prestado:.2f}</strong></div>
+                        <div class="col-4">Interés ({interes_pct}%): <strong>S/ {monto_interes:.2f}</strong></div>
+                        <div class="col-4">Total a Pagar: <strong>S/ {monto_total:.2f}</strong></div>
+                    </div>
+                </div>
+
+                <table class="table table-bordered table-sm my-2 border-dark">
                     <thead class="table-light border-dark">
                         <tr>
                             <th>Concepto</th>
-                            <th class="text-end">Monto</th>
+                            <th class="text-end">Monto Cobrado</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -168,6 +188,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
                         </tr>
                     </tbody>
                 </table>
+                
                 <div class="text-end fw-bold fs-6 mt-2">
                     Saldo Restante: S/ {ultimo_pago['saldo']:.2f}
                 </div>
@@ -189,7 +210,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
             body {{ background-color: #0b0f19; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }}
             .card {{ transition: transform 0.2s; }}
             .card:hover {{ transform: translateY(-2px); }}
-            .extra-small {{ font-size: 0.8rem; }}
+            .extra-small {{ font-size: 0.75rem; }}
             
             @media print {{
                 body {{ background-color: #ffffff !important; color: #000000 !important; }}
@@ -288,8 +309,6 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
         <script>
             document.addEventListener("DOMContentLoaded", function() {{
                 const selectorPerfil = document.getElementById('select-perfil');
-                
-                // Forzar inicio en cobrador
                 selectorPerfil.value = 'cobrador';
                 aplicarModoCobrador();
 
@@ -300,7 +319,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
 
                     if (perfil === 'admin') {{
                         const clave = prompt("Ingrese la clave de Administrador:");
-                        if (clave === "Saurin.1903") {{
+                        if (clave === "Saurin2003") {{
                             admins.forEach(el => el.style.display = 'block');
                             colPrestamos.className = "col-lg-8";
                         }} else {{
@@ -372,7 +391,10 @@ def abonar_prestamo(p_id: str = Form(...), monto_abono: float = Form(...)):
                 "deudor": p["deudor"],
                 "monto": monto_real,
                 "saldo": p["saldo"],
-                "modalidad": p["modalidad"]
+                "modalidad": p["modalidad"],
+                "monto_prestado": p["monto"],
+                "interes": p["interes"],
+                "total": p["total"]
             }
             return obtener_html(f"Abono de S/ {monto_real:.2f} registrado.", ultimo_pago=info_pago)
     return obtener_html("Error al registrar abono.")
