@@ -1,23 +1,36 @@
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Form, Request, Response, Depends, HTTPException, status
+from fastapi.responses import HTMLResponse, RedirectResponse
+from itsdangerous import URLSafeTimedSerializer, BadSignature
 import urllib.parse
 
 app = FastAPI()
 
-# Base de datos temporal con préstamos iniciales
+# Clave secreta para firmar las cookies de sesión
+SECRET_KEY = "saurin_secret_key_super_segura"
+serializer = URLSafeTimedSerializer(SECRET_KEY)
+
+# Usuarios del sistema (Puedes agregar más cobradores aquí)
+USUARIOS = {
+    "Saurin": {"password": "saurin1903", "rol": "admin", "nombre": "Administrador"},
+    "juan": {"password": "juan123", "rol": "cobrador", "nombre": "Juan Cobrador"},
+    "pedro": {"password": "pedro123", "rol": "cobrador", "nombre": "Pedro Cobrador"}
+}
+
+# Base de datos temporal
 prestamos = [
     {
         "id": "PRES-101",
         "deudor": "Franklin",
         "moneda": "Soles (S/)",
         "monto": 300.0,
-        "interes": 10.0,
-        "total": 330.0,
-        "saldo": 210.0,
+        "interes": 15.0,
+        "total": 345.0,
+        "saldo": 320.0,
         "modalidad": "Diario",
         "estado": "Cliente Puntual",
+        "cobrador_asignado": "juan",
         "pagos": [
-            {"fecha": "2026-08-18", "monto": 120.0, "registrado_por": "Cobrador"}
+            {"fecha": "2026-08-18", "monto": 25.0, "registrado_por": "juan"}
         ]
     },
     {
@@ -30,18 +43,83 @@ prestamos = [
         "saldo": 100.0,
         "modalidad": "Diario",
         "estado": "Cliente Puntual",
+        "cobrador_asignado": "pedro",
         "pagos": [
-            {"fecha": "2026-08-18", "monto": 1000.0, "registrado_por": "Cobrador"}
+            {"fecha": "2026-08-18", "monto": 1000.0, "registrado_por": "pedro"}
         ]
     }
 ]
 
-def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
+def obtener_usuario_actual(request: Request):
+    session_token = request.cookies.get("session")
+    if not session_token:
+        return None
+    try:
+        username = serializer.loads(session_token, salt="session-cookie", max_age=86400)
+        return USUARIOS.get(username)
+    except BadSignature:
+        return None
+
+def login_required(request: Request):
+    user = obtener_usuario_actual(request)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+            headers={"Location": "/login"}
+        )
+    return user
+
+def render_login(error=""):
+    error_html = f'<div class="alert alert-danger py-2 small">{error}</div>' if error else ""
+    return f"""
+    <!DOCTYPE html>
+    <html lang="es" data-bs-theme="dark">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Login - Préstamos Saurin</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+            body {{ background-color: #0b0f19; display: flex; align-items: center; justify-content: center; height: 100vh; }}
+            .card-login {{ width: 100%; max-width: 380px; }}
+        </style>
+    </head>
+    <body>
+        <div class="card card-login bg-dark text-white border-secondary shadow-lg p-4 rounded">
+            <h3 class="text-center text-info fw-bold mb-3">💼 Préstamos Saurin</h3>
+            <p class="text-center text-muted small mb-4">Ingresa tus credenciales para acceder</p>
+            {error_html}
+            <form action="/login" method="post">
+                <div class="mb-3">
+                    <label class="form-label small">Usuario</label>
+                    <input type="text" name="username" class="form-control bg-dark text-white border-secondary" required autofocus>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label small">Contraseña</label>
+                    <input type="password" name="password" class="form-control bg-dark text-white border-secondary" required>
+                </div>
+                <button type="submit" class="btn btn-info w-100 fw-bold">Iniciar Sesión</button>
+            </form>
+        </div>
+    </body>
+    </html>
+    """
+
+def obtener_html_panel(user: dict, mensaje: str = "", ultimo_pago: dict = None):
+    es_admin = user["rol"] == "admin"
+    username_actual = [u for u, datos in USUARIOS.items() if datos == user][0]
+
+    # Filtrar préstamos
+    if es_admin:
+        prestamos_visibles = prestamos
+    else:
+        prestamos_visibles = [p for p in prestamos if p.get("cobrador_asignado") == username_actual]
+
     cards_html = ""
-    for p in prestamos:
+    for p in prestamos_visibles:
         historial_html = "".join([
             f"<li class='list-group-item d-flex justify-content-between align-items-center bg-dark text-white border-secondary small py-1'>"
-            f"<span>📅 {p_item['fecha']}</span>"
+            f"<span>📅 {p_item['fecha']} ({p_item.get('registrado_por', 'sistema')})</span>"
             f"<span class='badge bg-success'>S/ {p_item['monto']:.2f}</span>"
             f"</li>"
             for p_item in p["pagos"]
@@ -70,15 +148,28 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
             </form>
             """
 
+        boton_eliminar = f"""
+        <div class='card-footer border-secondary bg-black bg-opacity-25 py-2'>
+            <form action='/eliminar' method='post' onsubmit='return confirm("¿Eliminar préstamo?");' class='m-0 w-100'>
+                <input type='hidden' name='p_id' value='{p["id"]}'>
+                <button type='submit' class='btn btn-outline-danger btn-sm w-100 py-1'>🗑️ Eliminar Préstamo</button>
+            </form>
+        </div>
+        """ if es_admin else ""
+
+        cobrador_nombre = USUARIOS.get(p.get("cobrador_asignado"), {}).get("nombre", "No Asignado")
+
         cards_html += f"""
         <div class='col-md-6 mb-4 item-prestamo' data-nombre='{p["deudor"].lower()}'>
             <div class='card bg-dark text-white border-secondary shadow-lg h-100'>
                 <div class='card-header d-flex justify-content-between align-items-center border-secondary bg-black bg-opacity-25 py-2'>
-                    <h5 class='m-0 text-info font-monospace fs-6'>#{p["id"]} — {p["deudor"]}</h5>
+                    <div>
+                        <h5 class='m-0 text-info font-monospace fs-6'>#{p["id"]} — {p["deudor"]}</h5>
+                        <small class='text-muted extra-small'>Cobrador: <b>{cobrador_nombre}</b></small>
+                    </div>
                     <span class='badge {badge_color}'>{estado_texto}</span>
                 </div>
                 <div class='card-body py-3'>
-                    <!-- Muestra de 3 columnas: Capital, Total con Interés y Saldo -->
                     <div class='row mb-2 text-center g-1'>
                         <div class='col-4 border-end border-secondary'>
                             <small class='text-muted d-block extra-small'>Prestado</small>
@@ -108,15 +199,74 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
 
                     {seccion_abono}
                 </div>
-                <div class='card-footer border-secondary bg-black bg-opacity-25 d-flex justify-content-between align-items-center solo-admin py-2' style='display: none;'>
-                    <form action='/eliminar' method='post' onsubmit='return confirm("¿Eliminar préstamo?");' class='m-0 w-100'>
-                        <input type='hidden' name='p_id' value='{p["id"]}'>
-                        <button type='submit' class='btn btn-outline-danger btn-sm w-100 py-1'>🗑️ Eliminar Préstamo</button>
-                    </form>
-                </div>
+                {boton_eliminar}
             </div>
         </div>
         """
+
+    cobradores_options = "".join([
+        f'<option value="{u}">{d["nombre"]}</option>'
+        for u, d in USUARIOS.items() if d["rol"] == "cobrador"
+    ])
+
+    formulario_nuevo = f"""
+    <div class="col-lg-4 mb-4">
+        <div class="card bg-dark text-white border-info shadow">
+            <div class="card-header bg-info bg-opacity-10 border-info py-2">
+                <h5 class="m-0 text-info fs-6">+ Nuevo Préstamo</h5>
+            </div>
+            <div class="card-body">
+                <form action="/crear" method="post">
+                    <div class="mb-2">
+                        <label class="form-label small mb-1">Asignar Cobrador</label>
+                        <select name="cobrador_asignado" class="form-select form-select-sm bg-dark text-white border-secondary" required>
+                            {cobradores_options}
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small mb-1">Nombre del Deudor</label>
+                        <input type="text" name="deudor" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Ej. Juan Pérez" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small mb-1">Moneda</label>
+                        <select name="moneda" class="form-select form-select-sm bg-dark text-white border-secondary">
+                            <option value="Soles (S/)">Soles (S/)</option>
+                            <option value="Dólares ($)">Dólares ($)</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small mb-1">Monto Prestado</label>
+                        <input type="number" step="0.01" name="monto" class="form-control form-control-sm bg-dark text-white border-secondary" required>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-6">
+                            <label class="form-label small mb-1">Modalidad</label>
+                            <select name="modalidad" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                <option value="Diario">Diario</option>
+                                <option value="Semanal">Semanal</option>
+                                <option value="Quincenal">Quincenal</option>
+                                <option value="Mensual">Mensual</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small mb-1">Interés (%)</label>
+                            <input type="number" step="0.1" name="interes" value="10" class="form-control form-control-sm bg-dark text-white border-secondary" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small mb-1">Estado Inicial</label>
+                        <select name="estado" class="form-select form-select-sm bg-dark text-white border-secondary">
+                            <option value="Cliente Puntual">Cliente Puntual</option>
+                            <option value="En Seguimiento">En Seguimiento</option>
+                            <option value="En Mora">En Mora</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-info btn-sm w-100 fw-bold">Crear Préstamo</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    """ if es_admin else ""
 
     alerta_html = ""
     if mensaje and ultimo_pago:
@@ -153,11 +303,11 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
             </div>
             <button type="button" class="btn-close btn-close-white d-print-none ms-2" data-bs-dismiss="alert" aria-label="Close"></button>
 
-            <!-- Formato de Boleta Completo para Impresión / PDF -->
-            <div class="d-none d-print-block p-3 text-black">
+            <!-- Boleta de Impresión en PDF -->
+            <div class="d-none d-print-block p-4 text-black">
                 <h4 class="text-center fw-bold mb-1">🧾 BOLETA DE COMPROBANTE DE PAGO</h4>
                 <div class="text-center small mb-3"><strong>Empresa:</strong> Préstamos Saurin</div>
-                <hr class="my-2">
+                <hr class="my-2 border-dark">
                 
                 <div class="row small mb-2">
                     <div class="col-6"><strong>Código:</strong> {ultimo_pago.get('id', 'PRES-101')}</div>
@@ -166,7 +316,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
                     <div class="col-6 text-end"><strong>Modalidad:</strong> {ultimo_pago.get('modalidad', 'Diario')}</div>
                 </div>
 
-                <div class="p-2 border border-secondary rounded bg-light small mb-3">
+                <div class="p-2 border border-dark rounded bg-light small mb-3">
                     <div class="row text-center">
                         <div class="col-4">Monto Prestado: <strong>S/ {monto_prestado:.2f}</strong></div>
                         <div class="col-4">Interés ({interes_pct}%): <strong>S/ {monto_interes:.2f}</strong></div>
@@ -198,6 +348,8 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
     elif mensaje:
         alerta_html = f'<div class="alert alert-warning alert-dismissible fade show small py-2 d-print-none" role="alert">{mensaje}<button type="button" class="btn-close d-print-none" data-bs-dismiss="alert"></button></div>'
 
+    col_size = "col-lg-8" if es_admin else "col-lg-12"
+
     return f"""
     <!DOCTYPE html>
     <html lang="es" data-bs-theme="dark">
@@ -213,6 +365,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
             .extra-small {{ font-size: 0.75rem; }}
             
             @media print {{
+                @page {{ margin: 1cm; }}
                 body {{ background-color: #ffffff !important; color: #000000 !important; }}
                 .d-print-none {{ display: none !important; }}
                 .d-print-block {{ display: block !important; }}
@@ -221,6 +374,7 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
                     color: #000000 !important;
                     border: 2px solid #000000 !important;
                     box-shadow: none !important;
+                    padding: 0 !important;
                 }}
             }}
         </style>
@@ -229,77 +383,25 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
         <div class="container py-4">
             <div class="d-flex justify-content-between align-items-center pb-3 mb-4 border-bottom border-secondary d-print-none">
                 <h2 class="fw-bold text-info m-0 fs-4">💼 Préstamos Saurin</h2>
-                <div class="d-flex align-items-center gap-2">
-                    <label class="small text-muted d-none d-sm-inline">Perfil:</label>
-                    <select id="select-perfil" class="form-select form-select-sm bg-dark text-white border-info">
-                        <option value="cobrador">Cobrador (Solo Registro)</option>
-                        <option value="admin">Administrador (Control Total)</option>
-                    </select>
+                <div class="d-flex align-items-center gap-3">
+                    <span class="small text-muted">Usuario: <strong class="text-white">{user['nombre']}</strong> <span class="badge bg-info">{user['rol'].upper()}</span></span>
+                    <a href="/logout" class="btn btn-sm btn-outline-danger">Cerrar Sesión</a>
                 </div>
             </div>
 
             {alerta_html}
 
             <div class="row d-print-none">
-                <div class="col-lg-4 mb-4 solo-admin" style="display: none;">
-                    <div class="card bg-dark text-white border-info shadow">
-                        <div class="card-header bg-info bg-opacity-10 border-info py-2">
-                            <h5 class="m-0 text-info fs-6">+ Nuevo Préstamo</h5>
-                        </div>
-                        <div class="card-body">
-                            <form action="/crear" method="post">
-                                <div class="mb-2">
-                                    <label class="form-label small mb-1">Nombre del Deudor</label>
-                                    <input type="text" name="deudor" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Ej. Juan Pérez" required>
-                                </div>
-                                <div class="mb-2">
-                                    <label class="form-label small mb-1">Moneda</label>
-                                    <select name="moneda" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                        <option value="Soles (S/)">Soles (S/)</option>
-                                        <option value="Dólares ($)">Dólares ($)</option>
-                                    </select>
-                                </div>
-                                <div class="mb-2">
-                                    <label class="form-label small mb-1">Monto Prestado</label>
-                                    <input type="number" step="0.01" name="monto" class="form-control form-control-sm bg-dark text-white border-secondary" required>
-                                </div>
-                                <div class="row mb-2">
-                                    <div class="col-6">
-                                        <label class="form-label small mb-1">Modalidad</label>
-                                        <select name="modalidad" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                            <option value="Diario">Diario</option>
-                                            <option value="Semanal">Semanal</option>
-                                            <option value="Quincenal">Quincenal</option>
-                                            <option value="Mensual">Mensual</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-6">
-                                        <label class="form-label small mb-1">Interés (%)</label>
-                                        <input type="number" step="0.1" name="interes" value="10" class="form-control form-control-sm bg-dark text-white border-secondary" required>
-                                    </div>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label small mb-1">Estado Inicial</label>
-                                    <select name="estado" class="form-select form-select-sm bg-dark text-white border-secondary">
-                                        <option value="Cliente Puntual">Cliente Puntual</option>
-                                        <option value="En Seguimiento">En Seguimiento</option>
-                                        <option value="En Mora">En Mora</option>
-                                    </select>
-                                </div>
-                                <button type="submit" class="btn btn-info btn-sm w-100 fw-bold">Crear Préstamo</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
+                {formulario_nuevo}
 
-                <div class="col-lg-12" id="contenedor-prestamos">
+                <div class="{col_size}" id="contenedor-prestamos">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="m-0 text-white">Lista de Préstamos</h5>
+                        <h5 class="m-0 text-white">Lista de Préstamos Asignados</h5>
                         <input type="text" id="buscador" class="form-control form-control-sm w-50 bg-dark text-white border-secondary" placeholder="🔍 Buscar cliente..." onkeyup="filtrarClientes()">
                     </div>
 
                     <div class="row">
-                        {cards_html}
+                        {cards_html if cards_html else "<div class='text-muted p-3'>No tienes préstamos asignados.</div>"}
                     </div>
                 </div>
             </div>
@@ -307,39 +409,6 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script>
-            document.addEventListener("DOMContentLoaded", function() {{
-                const selectorPerfil = document.getElementById('select-perfil');
-                selectorPerfil.value = 'cobrador';
-                aplicarModoCobrador();
-
-                selectorPerfil.addEventListener('change', function() {{
-                    const perfil = this.value;
-                    const admins = document.querySelectorAll('.solo-admin');
-                    const colPrestamos = document.getElementById('contenedor-prestamos');
-
-                    if (perfil === 'admin') {{
-                        const clave = prompt("Ingrese la clave de Administrador:");
-                        if (clave === "Saurin2003") {{
-                            admins.forEach(el => el.style.display = 'block');
-                            colPrestamos.className = "col-lg-8";
-                        }} else {{
-                            if (clave !== null) alert("Clave incorrecta");
-                            selectorPerfil.value = 'cobrador';
-                            aplicarModoCobrador();
-                        }}
-                    }} else {{
-                        aplicarModoCobrador();
-                    }}
-                }});
-            }});
-
-            function aplicarModoCobrador() {{
-                const admins = document.querySelectorAll('.solo-admin');
-                const colPrestamos = document.getElementById('contenedor-prestamos');
-                admins.forEach(el => el.style.display = 'none');
-                if (colPrestamos) colPrestamos.className = "col-lg-12";
-            }}
-
             function filtrarClientes() {{
                 const query = document.getElementById('buscador').value.toLowerCase();
                 const items = document.querySelectorAll('.item-prestamo');
@@ -353,12 +422,40 @@ def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
     </html>
     """
 
+# RUTAS DE AUTENTICACIÓN
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page():
+    return render_login()
+
+@app.post("/login")
+def login(response: Response, username: str = Form(...), password: str = Form(...)):
+    user = USUARIOS.get(username)
+    if not user or user["password"] != password:
+        return HTMLResponse(content=render_login("Usuario o contraseña incorrectos"), status_code=400)
+    
+    token = serializer.dumps(username, salt="session-cookie")
+    redirect_resp = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    redirect_resp.set_cookie(key="session", value=token, httponly=True, max_age=86400)
+    return redirect_resp
+
+@app.get("/logout")
+def logout():
+    response = RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    response.delete_cookie("session")
+    return response
+
+# RUTAS PRINCIPALES DE LA APLICACIÓN
+
 @app.get("/", response_class=HTMLResponse)
-def inicio():
-    return obtener_html()
+def inicio(request: Request, user: dict = Depends(login_required)):
+    return obtener_html_panel(user)
 
 @app.post("/crear", response_class=HTMLResponse)
-def crear_prestamo(deudor: str = Form(...), moneda: str = Form(...), monto: float = Form(...), modalidad: str = Form(...), interes: float = Form(...), estado: str = Form(...)):
+def crear_prestamo(request: Request, deudor: str = Form(...), moneda: str = Form(...), monto: float = Form(...), modalidad: str = Form(...), interes: float = Form(...), estado: str = Form(...), cobrador_asignado: str = Form(...), user: dict = Depends(login_required)):
+    if user["rol"] != "admin":
+        return obtener_html_panel(user, "⚠️ Solo el Administrador puede crear préstamos.")
+
     total = monto + (monto * (interes / 100))
     nuevo_id = f"PRES-{100 + len(prestamos) + 1}"
     prestamos.append({
@@ -371,20 +468,26 @@ def crear_prestamo(deudor: str = Form(...), moneda: str = Form(...), monto: floa
         "saldo": total,
         "modalidad": modalidad,
         "estado": estado,
+        "cobrador_asignado": cobrador_asignado,
         "pagos": []
     })
-    return obtener_html(f"Préstamo registrado para <strong>{deudor}</strong>.")
+    return obtener_html_panel(user, f"Préstamo registrado para <strong>{deudor}</strong> asignado a <strong>{USUARIOS.get(cobrador_asignado, {}).get('nombre')}</strong>.")
 
 @app.post("/abonar", response_class=HTMLResponse)
-def abonar_prestamo(p_id: str = Form(...), monto_abono: float = Form(...)):
+def abonar_prestamo(request: Request, p_id: str = Form(...), monto_abono: float = Form(...), user: dict = Depends(login_required)):
+    username_actual = [u for u, datos in USUARIOS.items() if datos == user][0]
+
     for p in prestamos:
         if p["id"] == p_id:
+            if user["rol"] != "admin" and p.get("cobrador_asignado") != username_actual:
+                return obtener_html_panel(user, "⚠️ No tienes permiso para abonar a este préstamo.")
+
             if p["saldo"] <= 0:
-                return obtener_html("⚠️ Este préstamo ya fue cancelado completamente.")
+                return obtener_html_panel(user, "⚠️ Este préstamo ya fue cancelado completamente.")
             
             monto_real = min(monto_abono, p["saldo"])
             p["saldo"] = max(0.0, p["saldo"] - monto_real)
-            p["pagos"].append({"fecha": "2026-08-18", "monto": monto_real, "registrado_por": "Cobrador"})
+            p["pagos"].append({"fecha": "2026-08-18", "monto": monto_real, "registrado_por": username_actual})
             
             info_pago = {
                 "id": p["id"],
@@ -396,11 +499,14 @@ def abonar_prestamo(p_id: str = Form(...), monto_abono: float = Form(...)):
                 "interes": p["interes"],
                 "total": p["total"]
             }
-            return obtener_html(f"Abono de S/ {monto_real:.2f} registrado.", ultimo_pago=info_pago)
-    return obtener_html("Error al registrar abono.")
+            return obtener_html_panel(user, f"Abono de S/ {monto_real:.2f} registrado por {user['nombre']}.", ultimo_pago=info_pago)
+    return obtener_html_panel(user, "Error al registrar abono.")
 
 @app.post("/eliminar", response_class=HTMLResponse)
-def eliminar_prestamo(p_id: str = Form(...)):
+def eliminar_prestamo(request: Request, p_id: str = Form(...), user: dict = Depends(login_required)):
+    if user["rol"] != "admin":
+        return obtener_html_panel(user, "⚠️ Acceso denegado: Solo el Administrador puede eliminar.")
+
     global prestamos
     prestamos = [p for p in prestamos if p["id"] != p_id]
-    return obtener_html("Préstamo eliminado.")
+    return obtener_html_panel(user, "Préstamo eliminado por el Administrador.")
