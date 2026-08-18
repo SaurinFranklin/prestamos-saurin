@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
+import urllib.parse
 
 app = FastAPI()
 
@@ -21,7 +22,7 @@ prestamos = [
     }
 ]
 
-def obtener_html(mensaje: str = ""):
+def obtener_html(mensaje: str = "", ultimo_pago: dict = None):
     cards_html = ""
     for p in prestamos:
         historial_html = "".join([
@@ -85,6 +86,41 @@ def obtener_html(mensaje: str = ""):
         </div>
         """
 
+    # Construir banner de alerta con acciones cuando se registra un abono
+    alerta_html = ""
+    if mensaje and ultimo_pago:
+        msg_wsp = (
+            f"🧾 *COMPROBANTE DE PAGO - PRESTAMOS SAURIN*\n"
+            f"👤 Cliente: {ultimo_pago['deudor']}\n"
+            f"💵 Abono: S/ {ultimo_pago['monto']:.2f}\n"
+            f"📊 Saldo Restante: S/ {ultimo_pago['saldo']:.2f}\n"
+            f"📅 Fecha: 2026-08-18\n"
+            f"¡Gracias por su pago!"
+        )
+        msg_encoded = urllib.parse.quote(msg_wsp)
+
+        alerta_html = f"""
+        <div class="alert alert-success alert-dismissible fade show p-3 mb-4 shadow" role="alert" id="comprobante-imprimir">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <strong>✅ {mensaje}</strong><br>
+                    <small class="text-dark">Cliente: <b>{ultimo_pago['deudor']}</b> | Saldo Restante: <b>S/ {ultimo_pago['saldo']:.2f}</b></small>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="https://api.whatsapp.com/send?text={msg_encoded}" target="_blank" class="btn btn-sm btn-dark fw-bold">
+                        📲 Enviar WhatsApp
+                    </a>
+                    <button onclick="imprimirTicket('{ultimo_pago['deudor']}', 'S/ {ultimo_pago['monto']:.2f}', 'S/ {ultimo_pago['saldo']:.2f}')" class="btn btn-sm btn-outline-dark fw-bold">
+                        🖨️ PDF / Imprimir
+                    </button>
+                </div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        """
+    elif mensaje:
+        alerta_html = f'<div class="alert alert-success alert-dismissible fade show small py-2" role="alert">{mensaje}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>'
+
     return f"""
     <!DOCTYPE html>
     <html lang="es" data-bs-theme="dark">
@@ -114,7 +150,7 @@ def obtener_html(mensaje: str = ""):
                 </div>
             </div>
 
-            {f'<div class="alert alert-success alert-dismissible fade show small py-2" role="alert">{mensaje}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>' if mensaje else ''}
+            {alerta_html}
 
             <div class="row">
                 <!-- Panel Crear Préstamo (Solo Admin) -->
@@ -192,7 +228,7 @@ def obtener_html(mensaje: str = ""):
 
                 if (perfil === 'admin') {{
                     const clave = prompt("Ingrese la clave de Administrador:");
-                    if (clave === "admin") {{
+                    if (clave === "Saurin.1903") {{
                         admins.forEach(el => el.style.display = 'block');
                         colPrestamos.className = "col-lg-8";
                     }} else {{
@@ -219,6 +255,26 @@ def obtener_html(mensaje: str = ""):
                     const nombre = item.getAttribute('data-nombre');
                     item.style.display = nombre.includes(query) ? 'block' : 'none';
                 }});
+            }}
+
+            function imprimirTicket(cliente, abono, saldo) {{
+                const ventana = window.open('', '', 'height=400,width=500');
+                ventana.document.write('<html><head><title>Comprobante de Pago</title>');
+                ventana.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">');
+                ventana.document.write('</head><body class="p-4 text-center">');
+                ventana.document.write('<h4 class="fw-bold mb-3">💼 Préstamos Saurin</h4>');
+                ventana.document.write('<p class="border-top border-bottom py-2"><strong>COMPROBANTE DE PAGO</strong></p>');
+                ventana.document.write('<div class="text-start mb-3">');
+                ventana.document.write('<p class="mb-1"><strong>Cliente:</strong> ' + cliente + '</p>');
+                ventana.document.write('<p class="mb-1"><strong>Monto Abonado:</strong> ' + abono + '</p>');
+                ventana.document.write('<p class="mb-1"><strong>Saldo Restante:</strong> ' + saldo + '</p>');
+                ventana.document.write('<p class="mb-1"><strong>Fecha:</strong> 2026-08-18</p>');
+                ventana.document.write('</div>');
+                ventana.document.write('<small class="text-muted">¡Gracias por su preferencia!</small>');
+                ventana.document.write('</body></html>');
+                ventana.document.close();
+                ventana.focus();
+                setTimeout(() => {{ ventana.print(); ventana.close(); }}, 400);
             }}
 
             // Ejecutar al cargar
@@ -256,7 +312,12 @@ def abonar_prestamo(p_id: str = Form(...), monto_abono: float = Form(...)):
         if p["id"] == p_id:
             p["saldo"] = max(0.0, p["saldo"] - monto_abono)
             p["pagos"].append({"fecha": "2026-08-18", "monto": monto_abono, "registrado_por": "Cobrador"})
-            return obtener_html(f"Abono de S/ {monto_abono:.2f} registrado exitosamente.")
+            info_pago = {
+                "deudor": p["deudor"],
+                "monto": monto_abono,
+                "saldo": p["saldo"]
+            }
+            return obtener_html(f"Abono de S/ {monto_abono:.2f} registrado.", ultimo_pago=info_pago)
     return obtener_html("Error al registrar abono.")
 
 @app.post("/eliminar", response_class=HTMLResponse)
