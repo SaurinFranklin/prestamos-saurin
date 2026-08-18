@@ -199,7 +199,7 @@ def obtener_html(mensaje: str = "", boleta_html: str = ""):
 
                 if (perfil === 'admin') {{
                     const clave = prompt("Ingrese la clave de Administrador:");
-                    if (clave === "admin") {{
+                    if (clave === "Saurin.1903") {{
                         admins.forEach(el => el.style.display = 'block');
                         colPrestamos.className = "col-lg-8";
                     }} else {{
