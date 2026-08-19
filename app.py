@@ -13,7 +13,7 @@ serializer = URLSafeTimedSerializer(SECRET_KEY)
 # Usuarios del sistema
 USUARIOS = {
     "Saurin": {"password": "saurin1903", "rol": "admin", "nombre": "Administrador"},
-    "Llovi": {"password": "yeray7410", "rol": "cobrador", "nombre": "Juan Cobrador"},
+    "juan": {"password": "juan123", "rol": "cobrador", "nombre": "Juan Cobrador"},
     "pedro": {"password": "pedro123", "rol": "cobrador", "nombre": "Pedro Cobrador"}
 }
 
@@ -56,7 +56,7 @@ def obtener_usuario_actual(request: Request):
     if not session_token:
         return None
     try:
-        user = serializer.loads(session_token, max_age=86400) # Sesión válida por 1 día
+        user = serializer.loads(session_token, max_age=86400)
         return user
     except BadSignature:
         return None
@@ -71,9 +71,13 @@ def render_login_html(error: str = ""):
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Login - Préstamos Saurin</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+            body {{ background-color: #050505 !important; }}
+            .card-login {{ background-color: #121212 !important; border: 1px solid #222222 !important; }}
+        </style>
     </head>
-    <body class="text-light d-flex align-items-center justify-content-center" style="min-height: 100vh; background-color: #0f1115;">
-        <div class="card bg-secondary text-white p-4 shadow-lg" style="width: 100%; max-width: 380px;">
+    <body class="text-light d-flex align-items-center justify-content-center" style="min-height: 100vh;">
+        <div class="card card-login text-white p-4 shadow-lg rounded-3" style="width: 100%; max-width: 380px;">
             <h3 class="text-center text-info mb-3">📌 Préstamos Saurin</h3>
             <p class="text-center text-muted mb-4">Ingresa tus credenciales para acceder</p>
             {error_html}
@@ -97,7 +101,6 @@ def obtener_html_panel(user: dict, mensaje: str = "", ultimo_pago_dict: dict = N
     es_admin = user["rol"] == "admin"
     usuario_actual = user["username"]
     
-    # Filtrar préstamos
     if es_admin:
         prestamos_visibles = prestamos
     else:
@@ -109,12 +112,11 @@ def obtener_html_panel(user: dict, mensaje: str = "", ultimo_pago_dict: dict = N
         for pago in reversed(p["pagos"]):
             historial += f"""
             <div class="d-flex justify-content-between align-items-center border-bottom border-secondary py-1 small">
-                <span>📅 {pago['fecha']} ({pago.get('registrado_por', 'Sistem')})</span>
+                <span>📅 {pago['fecha']} ({pago.get('registrado_por', 'Sistema')})</span>
                 <span class="badge bg-success">S/ {pago['monto']:.2f}</span>
             </div>
             """
         
-        # Botón para eliminar (solo visible para admin)
         btn_eliminar = f"""
         <form action="/eliminar/{p['id']}" method="post" style="display:inline;" onsubmit="return confirm('¿Seguro que deseas eliminar este préstamo?');">
             <button type="submit" class="btn btn-sm btn-outline-danger">🗑️ Eliminar</button>
@@ -123,9 +125,9 @@ def obtener_html_panel(user: dict, mensaje: str = "", ultimo_pago_dict: dict = N
 
         tarjetas += f"""
         <div class="col-md-6 mb-4">
-            <div class="card bg-dark text-white shadow-sm border-secondary">
-                <div class="card-header bg-dark d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0 text-info">#{p['id']} — {p['deudor']}</h5>
+            <div class="card bg-black text-white shadow border border-secondary">
+                <div class="card-header bg-dark d-flex justify-content-between align-items-center border-bottom border-secondary">
+                    <h5 class="mb-0 text-info fw-bold">#{p['id']} — {p['deudor']}</h5>
                     <div>
                         <span class="badge bg-success">{p['estado']}</span>
                         {btn_eliminar}
@@ -172,7 +174,6 @@ def obtener_html_panel(user: dict, mensaje: str = "", ultimo_pago_dict: dict = N
         </div>
         """
 
-    # Formulario para crear nuevos préstamos (Solo Admin)
     seccion_crear = ""
     if es_admin:
         cobradores_options = ""
@@ -181,7 +182,7 @@ def obtener_html_panel(user: dict, mensaje: str = "", ultimo_pago_dict: dict = N
                 cobradores_options += f'<option value="{k}">{v["nombre"]}</option>'
         
         seccion_crear = f"""
-        <div class="card bg-secondary text-white p-3 mb-4 shadow-sm">
+        <div class="card bg-black text-white p-3 mb-4 shadow border border-secondary">
             <h5 class="text-info mb-3">➕ Crear Nuevo Préstamo</h5>
             <form action="/crear" method="post" class="row g-3">
                 <div class="col-md-3">
@@ -215,9 +216,13 @@ def obtener_html_panel(user: dict, mensaje: str = "", ultimo_pago_dict: dict = N
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Préstamos Saurin</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+            body {{ background-color: #050505 !important; }}
+            .navbar {{ background-color: #000000 !important; border-bottom: 1px solid #222222 !important; }}
+        </style>
     </head>
-    <body class="bg-dark text-light">
-        <nav class="navbar navbar-expand-lg navbar-dark bg-secondary shadow-sm mb-4">
+    <body class="text-light">
+        <nav class="navbar navbar-expand-lg navbar-dark shadow-sm mb-4">
             <div class="container">
                 <a class="navbar-brand fw-bold text-info" href="/">📌 Préstamos Saurin</a>
                 <div class="d-flex align-items-center gap-3">
@@ -233,7 +238,7 @@ def obtener_html_panel(user: dict, mensaje: str = "", ultimo_pago_dict: dict = N
             
             <h4 class="mb-3 text-light">Lista de Préstamos</h4>
             <div class="row">
-                {tarjetas if tarjetas else '<div class="col-12"><div class="alert alert-warning">No tienes préstamos asignados.</div></div>'}
+                {tarjetas if tarjetas else '<div class="col-12"><div class="alert alert-warning bg-dark border-warning text-warning">No tienes préstamos asignados.</div></div>'}
             </div>
         </div>
 
@@ -287,13 +292,11 @@ def registrar_pago(prestamo_id: str, monto: float = Form(...), request: Request 
     
     for p in prestamos:
         if p["id"] == prestamo_id:
-            # Control de permisos para cobrador
             if user["rol"] != "admin" and p.get("cobrador_asignado") != user["username"]:
                 raise HTTPException(status_code=403, detail="No tienes permiso para registrar pagos en este préstamo")
             
             p["saldo"] = max(0.0, p["saldo"] - monto)
             
-            # FECHA AUTOMÁTICA DEL DÍA EN QUE SE REALIZA EL REGISTRO
             fecha_hoy = date.today().isoformat()
             
             p["pagos"].append({
