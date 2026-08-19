@@ -72,7 +72,7 @@ def render_login_html(error: str = ""):
         <title>Login - Préstamos Saurin</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     </head>
-    <body class="bg-dark text-light d-flex align-items-center justify-content-center" style="min-height: 100vh;">
+    <body class="text-light d-flex align-items-center justify-content-center" style="min-height: 100vh; background-color: #0f1115;">
         <div class="card bg-secondary text-white p-4 shadow-lg" style="width: 100%; max-width: 380px;">
             <h3 class="text-center text-info mb-3">📌 Préstamos Saurin</h3>
             <p class="text-center text-muted mb-4">Ingresa tus credenciales para acceder</p>
@@ -123,7 +123,7 @@ def obtener_html_panel(user: dict, mensaje: str = "", ultimo_pago_dict: dict = N
 
         tarjetas += f"""
         <div class="col-md-6 mb-4">
-            <div class="card bg-secondary text-white shadow-sm border-0">
+            <div class="card bg-dark text-white shadow-sm border-secondary">
                 <div class="card-header bg-dark d-flex justify-content-between align-items-center">
                     <h5 class="mb-0 text-info">#{p['id']} — {p['deudor']}</h5>
                     <div>
