@@ -64,9 +64,9 @@ SECRET_KEY = "saurin_secret_key_super_segura"
 serializer = URLSafeTimedSerializer(SECRET_KEY)
 
 USUARIOS = {
-    "Saurin": {"password": "saurin1903", "rol": "admin", "nombre": "Administrador"},
-    "juan": {"password": "juan123", "rol": "cobrador", "nombre": "Juan Cobrador"},
-    "pedro": {"password": "pedro123", "rol": "cobrador", "nombre": "Pedro Cobrador"}
+    "Geison": {"password": "xiomara789", "rol": "admin", "nombre": "Administrador"},
+    "Lester": {"password": "juan123", "rol": "cobrador", "nombre": "Cobrador"},
+    "pedro": {"password": "pedro123", "rol": "cobrador", "nombre": "Cobrador"}
 }
 
 def obtener_usuario_actual(request: Request):
@@ -256,7 +256,7 @@ def obtener_html_panel(user: dict, db: Session, mensaje: str = ""):
     <body class="text-light">
         <nav class="navbar navbar-expand-lg navbar-dark mb-4">
             <div class="container">
-                <a class="navbar-brand fw-bold text-info" href="/">📌 Préstamos Saurin</a>
+                <a class="navbar-brand fw-bold text-info" href="/">📌 Préstamos Geison</a>
                 <div class="d-flex align-items-center gap-3">
                     <span class="small">Usuario: <strong>{user['nombre']}</strong> ({user['rol'].upper()})</span>
                     <a href="/logout" class="btn btn-sm btn-outline-light">Cerrar Sesión</a>
