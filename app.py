@@ -89,7 +89,7 @@ def render_login_html(error: str = ""):
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Login - Préstamos Saurin</title>
+        <title>Login - Préstamos Geison</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <style>
             body {{ background-color: #050505 !important; }}
@@ -98,7 +98,7 @@ def render_login_html(error: str = ""):
     </head>
     <body class="text-light d-flex align-items-center justify-content-center" style="min-height: 100vh;">
         <div class="card card-login text-white p-4 shadow-lg rounded-3" style="width: 100%; max-width: 380px;">
-            <h3 class="text-center text-info mb-3">📌 Préstamos Saurin</h3>
+            <h3 class="text-center text-info mb-3">📌 Préstamos Geison</h3>
             <p class="text-center text-muted mb-4">Ingresa tus credenciales para acceder</p>
             {error_html}
             <form action="/login" method="post">
