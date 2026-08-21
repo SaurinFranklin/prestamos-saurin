@@ -72,7 +72,7 @@ SECRET_KEY = "geison_secret_key_super_segura"
 serializer = URLSafeTimedSerializer(SECRET_KEY)
 
 USUARIOS = {
-    "Geison": {"password": "geison1903", "rol": "admin", "nombre": "Administrador"},
+    "Geison": {"password": "xiomara789", "rol": "admin", "nombre": "Administrador"},
     "juan": {"password": "juan123", "rol": "cobrador", "nombre": "Juan Cobrador"},
     "pedro": {"password": "pedro123", "rol": "cobrador", "nombre": "Pedro Cobrador"}
 }
