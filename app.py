@@ -355,17 +355,24 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
         
     prestamo = pago.prestamo
     cobrador_nombre = USUARIOS.get(pago.registrado_por, {}).get("nombre", pago.registrado_por)
+    if " " in cobrador_nombre:
+        cobrador_nombre = cobrador_nombre.split()[0]
+        
     modalidad_texto = getattr(prestamo, "modalidad", "Diario") or "Diario"
     
     texto_wa = f"📌 *PRÉSTAMOS GEISON*\n" \
-               f"🧾 *Comprobante de Pago #{pago.id}*\n" \
-               f"👤 Cliente: {prestamo.deudor}\n" \
-               f"🗓️ Modalidad: {modalidad_texto}\n" \
-               f"💰 Abono: S/ {pago.monto:.2f}\n" \
-               f"📉 Saldo Restante: S/ {prestamo.saldo:.2f}\n" \
-               f"📅 Fecha: {pago.fecha}\n" \
-               f"📱 Registrado por: {cobrador_nombre}\n\n" \
-               f"¡Gracias por su pago!"
+               f"Comprobante Oficial de Pago\n" \
+               f"-----------------------------------\n" \
+               f"*N° Recibo:* #{pago.id}\n" \
+               f"*Fecha:* {pago.fecha}\n" \
+               f"*Cliente:* {prestamo.deudor}\n" \
+               f"*Modalidad:* {modalidad_texto}\n" \
+               f"*Cobrador:* {cobrador_nombre}\n" \
+               f"-----------------------------------\n" \
+               f"*Monto Abonado:* S/ {pago.monto:.2f}\n" \
+               f"*Saldo Restante:* S/ {prestamo.saldo:.2f}\n" \
+               f"-----------------------------------\n" \
+               f"¡Gracias por su puntualidad!"
                
     url_wa = f"https://api.whatsapp.com/send?text={urllib.parse.quote(texto_wa)}"
 
@@ -378,60 +385,78 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
         <title>Comprobante #{pago.id} - Préstamos Geison</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <style>
-            body {{ background-color: #050505 !important; color: #ffffff; }}
-            .ticket {{ background-color: #121212; border: 1px dashed #444; max-width: 400px; margin: 30px auto; padding: 25px; border-radius: 10px; }}
+            body {{ background-color: #050505 !important; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
+            .ticket {{ 
+                background-color: #0c0c0c; 
+                border: 1px dashed #333333; 
+                max-width: 380px; 
+                margin: 20px auto; 
+                padding: 24px; 
+                border-radius: 12px; 
+            }}
+            .title-blue {{ color: #00bfff; font-weight: 700; letter-spacing: 0.5px; }}
+            .text-muted-custom {{ color: #888888; }}
+            .text-green {{ color: #2ecc71; font-weight: 600; }}
+            .text-red {{ color: #e74c3c; font-weight: 600; }}
+            .btn-wa {{ background-color: #107c41; color: white; border: none; font-weight: 600; padding: 12px; border-radius: 8px; }}
+            .btn-wa:hover {{ background-color: #0b5c30; color: white; }}
+            .btn-print {{ background-color: transparent; color: #00bfff; border: 1px solid #00bfff; font-weight: 600; padding: 12px; border-radius: 8px; }}
+            .btn-print:hover {{ background-color: #00bfff; color: black; }}
             @media print {{
                 .no-print {{ display: none !important; }}
                 body {{ background-color: #ffffff !important; color: #000000 !important; }}
                 .ticket {{ border: 1px solid #000; background-color: #fff !important; color: #000 !important; }}
+                .title-blue {{ color: #000 !important; }}
+                .text-green {{ color: #000 !important; }}
+                .text-red {{ color: #000 !important; }}
             }}
         </style>
     </head>
     <body class="p-3">
         <div class="ticket shadow-lg">
-            <h3 class="text-center text-info fw-bold mb-1">📌 PRÉSTAMOS GEISON</h3>
-            <p class="text-center text-muted small mb-3">Comprobante Oficial de Pago</p>
-            <hr class="border-secondary">
+            <h3 class="text-center title-blue fs-4 mb-1">📌 PRÉSTAMOS GEISON</h3>
+            <p class="text-center text-muted-custom small mb-3">Comprobante Oficial de Pago</p>
+            <hr class="border-secondary opacity-25">
             
             <div class="d-flex justify-content-between mb-2">
-                <span class="text-muted">N° Recibo:</span>
-                <strong>#{pago.id}</strong>
+                <span class="text-muted-custom">N° Recibo:</span>
+                <strong class="fw-bold">#{pago.id}</strong>
             </div>
             <div class="d-flex justify-content-between mb-2">
-                <span class="text-muted">Fecha:</span>
+                <span class="text-muted-custom">Fecha:</span>
                 <span>{pago.fecha}</span>
             </div>
             <div class="d-flex justify-content-between mb-2">
-                <span class="text-muted">Cliente:</span>
-                <strong>{prestamo.deudor}</strong>
+                <span class="text-muted-custom">Cliente:</span>
+                <strong class="fw-bold">{prestamo.deudor}</strong>
             </div>
             <div class="d-flex justify-content-between mb-2">
-                <span class="text-muted">Modalidad:</span>
+                <span class="text-muted-custom">Modalidad:</span>
                 <span>{modalidad_texto}</span>
             </div>
             <div class="d-flex justify-content-between mb-2">
-                <span class="text-muted">Cobrador:</span>
+                <span class="text-muted-custom">Cobrador:</span>
                 <span>{cobrador_nombre}</span>
             </div>
             
-            <hr class="border-secondary my-3">
+            <hr class="border-secondary opacity-25 my-3">
             
-            <div class="d-flex justify-content-between mb-2 fs-5">
+            <div class="d-flex justify-content-between align-items-center mb-2 fs-5">
                 <span>Monto Abonado:</span>
-                <strong class="text-success">S/ {pago.monto:.2f}</strong>
+                <span class="text-green fs-4">S/ {pago.monto:.2f}</span>
             </div>
-            <div class="d-flex justify-content-between mb-2">
-                <span class="text-muted">Saldo Restante:</span>
-                <strong class="text-danger">S/ {prestamo.saldo:.2f}</strong>
+            <div class="d-flex justify-content-between align-items-center mb-2 fs-5">
+                <span class="text-muted-custom">Saldo Restante:</span>
+                <span class="text-red">S/ {prestamo.saldo:.2f}</span>
             </div>
             
-            <hr class="border-secondary my-3">
-            <p class="text-center small text-muted mb-4">¡Gracias por su puntualidad!</p>
+            <hr class="border-secondary opacity-25 my-3">
+            <p class="text-center text-muted-custom small mb-4">¡Gracias por su puntualidad!</p>
             
             <div class="d-grid gap-2 no-print">
-                <a href="{url_wa}" target="_blank" class="btn btn-success fw-bold">📲 Enviar por WhatsApp</a>
-                <button onclick="window.print()" class="btn btn-outline-info fw-bold">🖨️ Imprimir / Guardar PDF</button>
-                <a href="/" class="btn btn-sm btn-link text-muted text-center mt-1">⬅️ Volver al Panel</a>
+                <a href="{url_wa}" target="_blank" class="btn btn-wa text-center text-decoration-none">📲 Enviar por WhatsApp</a>
+                <button onclick="window.print()" class="btn btn-print">🖨️ Imprimir / Guardar PDF</button>
+                <a href="/" class="btn btn-sm text-muted-custom text-center mt-1 text-decoration-none">🔙 Volver al Panel</a>
             </div>
         </div>
     </body>
