@@ -30,7 +30,7 @@ class PrestamoDB(Base):
     total = Column(Float, nullable=False)
     saldo = Column(Float, nullable=False)
     modalidad = Column(String, default="Diario")
-    estado = Column(String, default="Cliente Puntual")
+    estado = Column(String, default="Puntual")
     cobrador_asignado = Column(String, nullable=False)
 
     pagos = relationship("PagoDB", back_populates="prestamo", cascade="all, delete-orphan")
@@ -125,7 +125,7 @@ def render_login_html(error: str = ""):
     </html>
     """
 
-def obtener_html_panel(user: dict, db: Session, mensaje: str = ""):
+def obtener_html_panel(user: dict, db: Session, mensaje: str = "", error_msg: str = ""):
     es_admin = user["rol"] == "admin"
     usuario_actual = user["username"]
     
@@ -159,9 +159,14 @@ def obtener_html_panel(user: dict, db: Session, mensaje: str = ""):
         """ if es_admin else ""
 
         modalidad_texto = getattr(p, "modalidad", "Diario") or "Diario"
+        nombre_cobrador = USUARIOS.get(p.cobrador_asignado, {}).get('nombre', p.cobrador_asignado)
+        badge_estado = '<span class="badge bg-secondary">COMPLETADO</span>' if p.saldo <= 0 else f'<span class="badge bg-success">{p.estado}</span>'
+
+        # Atributos data-search para filtrado rápido con JS
+        search_data = f"{p.id} {p.deudor} {nombre_cobrador} {modalidad_texto}".lower()
 
         tarjetas += f"""
-        <div class="col-md-6 mb-4">
+        <div class="col-md-6 mb-4 card-prestamo-item" data-search="{search_data}">
             <div class="card bg-black text-white shadow border border-secondary">
                 <div class="card-header bg-dark d-flex justify-content-between align-items-center border-bottom border-secondary">
                     <div>
@@ -169,12 +174,12 @@ def obtener_html_panel(user: dict, db: Session, mensaje: str = ""):
                         <small class="badge bg-outline-secondary text-muted border border-secondary mt-1">🗓️ {modalidad_texto}</small>
                     </div>
                     <div>
-                        <span class="badge bg-success">{p.estado}</span>
+                        {badge_estado}
                         {btn_eliminar}
                     </div>
                 </div>
                 <div class="card-body">
-                    <p class="small text-muted mb-2">Cobrador: <strong>{USUARIOS.get(p.cobrador_asignado, {}).get('nombre', p.cobrador_asignado)}</strong></p>
+                    <p class="small text-muted mb-2">Cobrador: <strong>{nombre_cobrador}</strong></p>
                     <div class="row text-center my-3">
                         <div class="col-4">
                             <small class="text-muted d-block">Prestado</small>
@@ -186,7 +191,7 @@ def obtener_html_panel(user: dict, db: Session, mensaje: str = ""):
                         </div>
                         <div class="col-4">
                             <small class="text-muted d-block">Saldo</small>
-                            <strong class="text-danger">S/ {p.saldo:.2f}</strong>
+                            <strong class="{'text-success' if p.saldo <= 0 else 'text-danger'}">S/ {p.saldo:.2f}</strong>
                         </div>
                     </div>
                     
@@ -200,13 +205,15 @@ def obtener_html_panel(user: dict, db: Session, mensaje: str = ""):
                         </div>
                     </div>
 
+                    {'<div class="alert alert-success py-1 my-0 text-center small fw-bold">✓ Préstamo Pagado Totalmente</div>' if p.saldo <= 0 else f'''
                     <form action="/pagar/{p.id}" method="post">
                         <div class="input-group">
                             <span class="input-group-text bg-dark text-white border-secondary">S/</span>
-                            <input type="number" step="0.01" name="monto" class="form-control bg-dark text-white border-secondary" placeholder="Monto" required>
+                            <input type="number" step="0.01" min="0.01" max="{p.saldo}" name="monto" class="form-control bg-dark text-white border-secondary" placeholder="Monto" required>
                             <button class="btn btn-success fw-bold" type="submit">💰 Cobrar</button>
                         </div>
                     </form>
+                    '''}
                 </div>
             </div>
         </div>
@@ -223,10 +230,10 @@ def obtener_html_panel(user: dict, db: Session, mensaje: str = ""):
                     <input type="text" name="deudor" class="form-control bg-dark text-white border-secondary" placeholder="Nombre Deudor" required>
                 </div>
                 <div class="col-md-2">
-                    <input type="number" step="0.01" name="monto" class="form-control bg-dark text-white border-secondary" placeholder="Monto (S/)" required>
+                    <input type="number" step="0.01" min="1" name="monto" class="form-control bg-dark text-white border-secondary" placeholder="Monto (S/)" required>
                 </div>
                 <div class="col-md-2">
-                    <input type="number" step="0.1" name="interes" class="form-control bg-dark text-white border-secondary" placeholder="Interés %" value="15" required>
+                    <input type="number" step="0.1" min="0" name="interes" class="form-control bg-dark text-white border-secondary" placeholder="Interés %" value="15" required>
                 </div>
                 <div class="col-md-2">
                     <select name="modalidad" class="form-select bg-dark text-white border-secondary" required>
@@ -249,6 +256,7 @@ def obtener_html_panel(user: dict, db: Session, mensaje: str = ""):
         """
 
     alerta = f'<div class="alert alert-success alert-dismissible fade show">{mensaje}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>' if mensaje else ""
+    alerta_err = f'<div class="alert alert-danger alert-dismissible fade show">{error_msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>' if error_msg else ""
 
     return f"""
     <!DOCTYPE html>
@@ -275,13 +283,42 @@ def obtener_html_panel(user: dict, db: Session, mensaje: str = ""):
         </nav>
         <div class="container">
             {alerta}
+            {alerta_err}
             {seccion_crear}
+            
+            <!-- BUSCADOR EN TIEMPO REAL -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="input-group">
+                        <span class="input-group-text bg-black text-info border-secondary">🔍 Buscar</span>
+                        <input type="text" id="inputBuscador" class="form-control bg-dark text-white border-secondary p-2" placeholder="Escribe nombre de cliente, código (#PRES-101) o cobrador...">
+                    </div>
+                </div>
+            </div>
+
             <h4 class="mb-3 text-light">Lista de Préstamos</h4>
-            <div class="row">
+            <div class="row" id="contenedorPrestamos">
                 {tarjetas if tarjetas else '<div class="col-12"><div class="alert alert-warning bg-dark border-warning text-warning">No hay préstamos asignados.</div></div>'}
             </div>
         </div>
+
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            // Filtrado dinámico sin recargar página
+            document.getElementById('inputBuscador').addEventListener('keyup', function() {{
+                const query = this.value.toLowerCase().trim();
+                const items = document.querySelectorAll('.card-prestamo-item');
+                
+                items.forEach(item => {{
+                    const text = item.getAttribute('data-search');
+                    if (text.includes(query)) {{
+                        item.style.display = 'block';
+                    }} else {{
+                        item.style.display = 'none';
+                    }}
+                }});
+            }});
+        </script>
     </body>
     </html>
     """
@@ -290,11 +327,11 @@ def obtener_html_panel(user: dict, db: Session, mensaje: str = ""):
 # Endpoints / Rutas
 # -------------------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request, msg: str = "", db: Session = Depends(get_db)):
+def index(request: Request, msg: str = "", err: str = "", db: Session = Depends(get_db)):
     user = obtener_usuario_actual(request)
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-    return obtener_html_panel(user, db, mensaje=msg)
+    return obtener_html_panel(user, db, mensaje=msg, error_msg=err)
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
@@ -334,6 +371,12 @@ def registrar_pago(prestamo_id: str, monto: float = Form(...), request: Request 
     if user["rol"] != "admin" and prestamo.cobrador_asignado != user["username"]:
         raise HTTPException(status_code=403, detail="No autorizado")
     
+    # Validación: No permitir abonos menores o iguales a 0 o superiores al saldo restante
+    if monto <= 0:
+        return RedirectResponse(url=f"/?err={urllib.parse.quote('El monto debe ser mayor a cero.')}", status_code=status.HTTP_302_FOUND)
+    if monto > prestamo.saldo:
+        return RedirectResponse(url=f"/?err={urllib.parse.quote('El monto supera el saldo restante.')}", status_code=status.HTTP_302_FOUND)
+    
     prestamo.saldo = max(0.0, prestamo.saldo - monto)
     nuevo_pago = PagoDB(prestamo_id=prestamo.id, fecha=date.today().isoformat(), monto=monto, registrado_por=user["username"])
     
@@ -357,7 +400,6 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
     modalidad_texto = getattr(prestamo, "modalidad", "Diario") or "Diario"
     monto_interes = prestamo.monto * (prestamo.interes / 100.0)
     
-    # Texto alineado al modelo
     texto_wa = f"*BOLETA DE COMPROBANTE DE PAGO*\n" \
                f"Empresa: Préstamos Geison\n" \
                f"Código: {prestamo.id}\n" \
@@ -382,7 +424,7 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
         <title>Recibo #{pago.id} - Préstamos Geison</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <style>
-            /* --- ESTILOS EN PANTALLA (Ticket Oscuro) --- */
+            /* ESTILOS EN PANTALLA (Ticket Oscuro) */
             body {{
                 background-color: #0d0d0d;
                 color: #ffffff;
@@ -459,12 +501,14 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
                 color: #000;
             }}
 
-            /* La boleta de impresión está oculta en pantalla */
             .boleta-impresion {{
                 display: none;
             }}
 
-            /* --- ESTILOS EN IMPRESIÓN / PDF (Boleta Blanca) --- */
+            /* ESTILOS EN IMPRESIÓN / PDF (Boleta Blanca Limpia) */
+            @page {{
+                margin: 10mm;
+            }}
             @media print {{
                 .ticket-pantalla {{
                     display: none !important;
