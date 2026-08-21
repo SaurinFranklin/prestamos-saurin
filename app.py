@@ -357,6 +357,7 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
     modalidad_texto = getattr(prestamo, "modalidad", "Diario") or "Diario"
     monto_interes = prestamo.monto * (prestamo.interes / 100.0)
     
+    # Texto alineado al modelo
     texto_wa = f"*BOLETA DE COMPROBANTE DE PAGO*\n" \
                f"Empresa: Préstamos Geison\n" \
                f"Código: {prestamo.id}\n" \
@@ -378,101 +379,212 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Boleta #{pago.id} - Préstamos Geison</title>
+        <title>Recibo #{pago.id} - Préstamos Geison</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <style>
+            /* --- ESTILOS EN PANTALLA (Ticket Oscuro) --- */
             body {{
-                background-color: #f8f9fa;
-                font-family: Arial, Helvetica, sans-serif;
-                color: #000;
+                background-color: #0d0d0d;
+                color: #ffffff;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                margin: 0;
+                padding: 20px;
             }}
-            .boleta-container {{
-                max-width: 550px;
-                margin: 20px auto;
-                background: #fff;
-                border: 2px solid #000;
-                border-radius: 12px;
+            .ticket-pantalla {{
+                background-color: #171717;
+                border: 1px dashed #333333;
+                border-radius: 16px;
                 padding: 24px;
+                width: 100%;
+                max-width: 360px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             }}
-            .boleta-header {{
+            .ticket-header {{
                 text-align: center;
                 margin-bottom: 20px;
             }}
-            .boleta-title {{
+            .ticket-title {{
+                color: #00d2ff;
                 font-size: 20px;
                 font-weight: 800;
                 letter-spacing: 0.5px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 8px;
             }}
-            .divider {{
-                border-top: 1px solid #ccc;
-                margin: 15px 0;
-            }}
-            .info-grid {{
-                display: flex;
-                justify-content: space-between;
-                font-size: 14px;
-                line-height: 1.6;
-            }}
-            .info-box {{
-                border: 1px solid #000;
-                border-radius: 8px;
-                padding: 12px;
-                margin: 15px 0;
-                display: flex;
-                justify-content: space-between;
-                text-align: center;
+            .ticket-subtitle {{
+                color: #888;
                 font-size: 13px;
+                margin-top: 2px;
             }}
-            .info-box div {{
-                flex: 1;
-            }}
-            .info-box-title {{
-                font-weight: bold;
-            }}
-            .info-box-val {{
-                font-weight: bold;
-                font-size: 15px;
-                margin-top: 4px;
-            }}
-            .tabla-concepto {{
-                width: 100%;
-                border-collapse: collapse;
-                margin: 15px 0;
-                border: 1px solid #000;
-            }}
-            .tabla-concepto th {{
-                border: 1px solid #000;
-                padding: 8px;
-                font-weight: bold;
+            .ticket-row {{
+                display: flex;
+                justify-content: space-between;
                 font-size: 14px;
+                margin-bottom: 8px;
+                color: #ccc;
             }}
-            .tabla-concepto td {{
-                border: 1px solid #000;
-                padding: 8px;
-                font-size: 14px;
+            .ticket-row strong {{
+                color: #fff;
             }}
-            .saldo-line {{
-                text-align: right;
-                font-size: 16px;
+            .monto-destacado {{
+                font-size: 18px;
                 font-weight: bold;
-                margin-top: 15px;
+                color: #2ed573;
             }}
+            .saldo-destacado {{
+                font-size: 18px;
+                font-weight: bold;
+                color: #ff4757;
+            }}
+            .btn-wa {{
+                background-color: #059669;
+                color: white;
+                font-weight: 600;
+                border: none;
+            }}
+            .btn-wa:hover {{
+                background-color: #047857;
+                color: white;
+            }}
+            .btn-pdf {{
+                background-color: transparent;
+                border: 1px solid #00d2ff;
+                color: #00d2ff;
+                font-weight: 600;
+            }}
+            .btn-pdf:hover {{
+                background-color: #00d2ff;
+                color: #000;
+            }}
+
+            /* La boleta de impresión está oculta en pantalla */
+            .boleta-impresion {{
+                display: none;
+            }}
+
+            /* --- ESTILOS EN IMPRESIÓN / PDF (Boleta Blanca) --- */
             @media print {{
-                .no-print {{ display: none !important; }}
-                body {{ background: #fff !important; }}
-                .boleta-container {{ border: 2px solid #000 !important; margin: 0 auto; box-shadow: none !important; }}
+                .ticket-pantalla {{
+                    display: none !important;
+                }}
+                body {{
+                    background-color: #fff !important;
+                    color: #000 !important;
+                    display: block !important;
+                    padding: 0 !important;
+                }}
+                .boleta-impresion {{
+                    display: block !important;
+                    max-width: 650px;
+                    margin: 0 auto;
+                    background: #fff;
+                    border: 2px solid #000;
+                    border-radius: 12px;
+                    padding: 24px;
+                }}
+                .boleta-header {{
+                    text-align: center;
+                    margin-bottom: 20px;
+                }}
+                .boleta-title {{
+                    font-size: 22px;
+                    font-weight: 800;
+                    letter-spacing: 0.5px;
+                }}
+                .divider {{
+                    border-top: 1px solid #ccc;
+                    margin: 15px 0;
+                }}
+                .info-grid {{
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 14px;
+                    line-height: 1.6;
+                }}
+                .info-box {{
+                    border: 1px solid #000;
+                    border-radius: 8px;
+                    padding: 12px;
+                    margin: 15px 0;
+                    display: flex;
+                    justify-content: space-between;
+                    text-align: center;
+                    font-size: 13px;
+                }}
+                .info-box div {{
+                    flex: 1;
+                }}
+                .info-box-val {{
+                    font-weight: bold;
+                    font-size: 15px;
+                    margin-top: 4px;
+                }}
+                .tabla-concepto {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 15px 0;
+                    border: 1px solid #000;
+                }}
+                .tabla-concepto th, .tabla-concepto td {{
+                    border: 1px solid #000;
+                    padding: 8px;
+                    font-size: 14px;
+                }}
+                .saldo-line {{
+                    text-align: right;
+                    font-size: 16px;
+                    font-weight: bold;
+                    margin-top: 15px;
+                }}
             }}
         </style>
     </head>
-    <body class="p-3">
-        <div class="boleta-container shadow-sm">
+    <body>
+
+        <!-- VISTA EN PANTALLA (Ticket Oscuro) -->
+        <div class="ticket-pantalla">
+            <div class="ticket-header">
+                <div class="ticket-title">📌 PRÉSTAMOS GEISON</div>
+                <div class="ticket-subtitle">Comprobante Oficial de Pago</div>
+            </div>
+
+            <div class="my-3">
+                <div class="ticket-row"><span>N° Recibo:</span> <strong>#{pago.id}</strong></div>
+                <div class="ticket-row"><span>Fecha:</span> <strong>{pago.fecha}</strong></div>
+                <div class="ticket-row"><span>Cliente:</span> <strong>{prestamo.deudor}</strong></div>
+                <div class="ticket-row"><span>Modalidad:</span> <strong>{modalidad_texto}</strong></div>
+                <div class="ticket-row"><span>Cobrador:</span> <strong>{pago.registrado_por}</strong></div>
+            </div>
+
+            <hr style="border-color: #333;" class="my-3">
+
+            <div class="ticket-row align-items-center">
+                <span>Monto Abonado:</span>
+                <span class="monto-destacado">S/ {pago.monto:.2f}</span>
+            </div>
+            <div class="ticket-row align-items-center">
+                <span>Saldo Restante:</span>
+                <span class="saldo-destacado">S/ {prestamo.saldo:.2f}</span>
+            </div>
+
+            <hr style="border-color: #333;" class="my-3">
+
+            <p class="text-center text-muted small my-3">¡Gracias por su puntualidad!</p>
+
+            <div class="d-grid gap-2">
+                <a href="{url_wa}" target="_blank" class="btn btn-wa py-2">📱 Enviar por WhatsApp</a>
+                <button onclick="window.print()" class="btn btn-pdf py-2">🖨️ Imprimir / Guardar PDF</button>
+                <a href="/" class="btn btn-sm text-secondary text-center text-decoration-none mt-1">🔙 Volver al Panel</a>
+            </div>
+        </div>
+
+        <!-- VISTA EXCLUSIVA PARA IMPRESIÓN / PDF (Boleta Blanca) -->
+        <div class="boleta-impresion">
             <div class="boleta-header">
                 <div class="boleta-title">
-                    <span>🧾</span> BOLETA DE COMPROBANTE DE PAGO
+                    🧾 BOLETA DE COMPROBANTE DE PAGO
                 </div>
                 <div class="mt-1 fs-6">
                     <strong>Empresa:</strong> Préstamos Geison
@@ -494,15 +606,15 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
 
             <div class="info-box">
                 <div>
-                    <span class="info-box-title">Monto Prestado: S/</span>
+                    <div><strong>Monto Prestado: S/</strong></div>
                     <div class="info-box-val">{prestamo.monto:.2f}</div>
                 </div>
                 <div>
-                    <span class="info-box-title">Interés ({prestamo.interes:.1f}%): S/</span>
+                    <div><strong>Interés ({prestamo.interes:.1f}%): S/</strong></div>
                     <div class="info-box-val">{monto_interes:.2f}</div>
                 </div>
                 <div>
-                    <span class="info-box-title">Total a Pagar: S/</span>
+                    <div><strong>Total a Pagar: S/</strong></div>
                     <div class="info-box-val">{prestamo.total:.2f}</div>
                 </div>
             </div>
@@ -516,7 +628,7 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
                 </thead>
                 <tbody>
                     <tr>
-                        <td style="color: #666;">Abono a Préstamo #{prestamo.id}</td>
+                        <td style="color: #444;">Abono a Préstamo #{prestamo.id}</td>
                         <td style="text-align: right; font-weight: bold;">S/ {pago.monto:.2f}</td>
                     </tr>
                 </tbody>
@@ -525,13 +637,8 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
             <div class="saldo-line">
                 Saldo Restante: S/ {prestamo.saldo:.2f}
             </div>
-
-            <div class="d-grid gap-2 mt-4 no-print">
-                <a href="{url_wa}" target="_blank" class="btn btn-success fw-bold py-2">📲 Enviar por WhatsApp</a>
-                <button onclick="window.print()" class="btn btn-outline-dark fw-bold py-2">🖨️ Imprimir / Guardar PDF</button>
-                <a href="/" class="btn btn-sm btn-link text-muted text-center text-decoration-none mt-1">🔙 Volver al Panel</a>
-            </div>
         </div>
+
     </body>
     </html>
     """
