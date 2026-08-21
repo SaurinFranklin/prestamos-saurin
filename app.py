@@ -4,7 +4,7 @@ from datetime import date
 from fastapi import FastAPI, Form, Request, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from itsdangerous import URLSafeTimedSerializer, BadSignature
-from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, text
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship, Session
 
 # -------------------------------------------------------------------
@@ -48,6 +48,14 @@ class PagoDB(Base):
 
 Base.metadata.create_all(bind=engine)
 
+# Migración automática: Agrega la columna 'modalidad' si aún no existe en la BD de Render
+with engine.connect() as conn:
+    try:
+        conn.execute(text("ALTER TABLE prestamos ADD COLUMN modalidad VARCHAR DEFAULT 'Diario';"))
+        conn.commit()
+    except Exception:
+        pass  # Si la columna ya existe, ignora el intento de migración
+
 def get_db():
     db = SessionLocal()
     try:
@@ -64,9 +72,9 @@ SECRET_KEY = "saurin_secret_key_super_segura"
 serializer = URLSafeTimedSerializer(SECRET_KEY)
 
 USUARIOS = {
-    "Geison": {"password": "xiomara789", "rol": "admin", "nombre": "Administrador"},
-    "Lester": {"password": "juan123", "rol": "cobrador", "nombre": "Cobrador"},
-    "pedro": {"password": "pedro123", "rol": "cobrador", "nombre": "Cobrador"}
+    "Saurin": {"password": "saurin1903", "rol": "admin", "nombre": "Administrador"},
+    "juan": {"password": "juan123", "rol": "cobrador", "nombre": "Juan Cobrador"},
+    "pedro": {"password": "pedro123", "rol": "cobrador", "nombre": "Pedro Cobrador"}
 }
 
 def obtener_usuario_actual(request: Request):
@@ -89,7 +97,7 @@ def render_login_html(error: str = ""):
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Login - Préstamos Geison</title>
+        <title>Login - Préstamos Saurin</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <style>
             body {{ background-color: #050505 !important; }}
@@ -98,7 +106,7 @@ def render_login_html(error: str = ""):
     </head>
     <body class="text-light d-flex align-items-center justify-content-center" style="min-height: 100vh;">
         <div class="card card-login text-white p-4 shadow-lg rounded-3" style="width: 100%; max-width: 380px;">
-            <h3 class="text-center text-info mb-3">📌 Préstamos Geison</h3>
+            <h3 class="text-center text-info mb-3">📌 Préstamos Saurin</h3>
             <p class="text-center text-muted mb-4">Ingresa tus credenciales para acceder</p>
             {error_html}
             <form action="/login" method="post">
@@ -150,13 +158,15 @@ def obtener_html_panel(user: dict, db: Session, mensaje: str = ""):
         </form>
         """ if es_admin else ""
 
+        modalidad_texto = getattr(p, "modalidad", "Diario") or "Diario"
+
         tarjetas += f"""
         <div class="col-md-6 mb-4">
             <div class="card bg-black text-white shadow border border-secondary">
                 <div class="card-header bg-dark d-flex justify-content-between align-items-center border-bottom border-secondary">
                     <div>
                         <h5 class="mb-0 text-info fw-bold">#{p.id} — {p.deudor}</h5>
-                        <small class="badge bg-outline-secondary text-muted border border-secondary mt-1">🗓️ {p.modalidad}</small>
+                        <small class="badge bg-outline-secondary text-muted border border-secondary mt-1">🗓️ {modalidad_texto}</small>
                     </div>
                     <div>
                         <span class="badge bg-success">{p.estado}</span>
@@ -246,7 +256,7 @@ def obtener_html_panel(user: dict, db: Session, mensaje: str = ""):
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Préstamos Geison</title>
+        <title>Préstamos Saurin</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <style>
             body {{ background-color: #050505 !important; }}
@@ -256,7 +266,7 @@ def obtener_html_panel(user: dict, db: Session, mensaje: str = ""):
     <body class="text-light">
         <nav class="navbar navbar-expand-lg navbar-dark mb-4">
             <div class="container">
-                <a class="navbar-brand fw-bold text-info" href="/">📌 Préstamos Geison</a>
+                <a class="navbar-brand fw-bold text-info" href="/">📌 Préstamos Saurin</a>
                 <div class="d-flex align-items-center gap-3">
                     <span class="small">Usuario: <strong>{user['nombre']}</strong> ({user['rol'].upper()})</span>
                     <a href="/logout" class="btn btn-sm btn-outline-light">Cerrar Sesión</a>
@@ -345,11 +355,12 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
         
     prestamo = pago.prestamo
     cobrador_nombre = USUARIOS.get(pago.registrado_por, {}).get("nombre", pago.registrado_por)
+    modalidad_texto = getattr(prestamo, "modalidad", "Diario") or "Diario"
     
-    texto_wa = f"📌 *PRÉSTAMOS GEISON*\n" \
+    texto_wa = f"📌 *PRÉSTAMOS SAURIN*\n" \
                f"🧾 *Comprobante de Pago #{pago.id}*\n" \
                f"👤 Cliente: {prestamo.deudor}\n" \
-               f"🗓️ Modalidad: {prestamo.modalidad}\n" \
+               f"🗓️ Modalidad: {modalidad_texto}\n" \
                f"💰 Abono: S/ {pago.monto:.2f}\n" \
                f"📉 Saldo Restante: S/ {prestamo.saldo:.2f}\n" \
                f"📅 Fecha: {pago.fecha}\n" \
@@ -364,7 +375,7 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Comprobante #{pago.id} - Préstamos Geison</title>
+        <title>Comprobante #{pago.id} - Préstamos Saurin</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <style>
             body {{ background-color: #050505 !important; color: #ffffff; }}
@@ -378,7 +389,7 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
     </head>
     <body class="p-3">
         <div class="ticket shadow-lg">
-            <h3 class="text-center text-info fw-bold mb-1">📌 PRÉSTAMOS GEISON</h3>
+            <h3 class="text-center text-info fw-bold mb-1">📌 PRÉSTAMOS SAURIN</h3>
             <p class="text-center text-muted small mb-3">Comprobante Oficial de Pago</p>
             <hr class="border-secondary">
             
@@ -396,7 +407,7 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
             </div>
             <div class="d-flex justify-content-between mb-2">
                 <span class="text-muted">Modalidad:</span>
-                <span>{prestamo.modalidad}</span>
+                <span>{modalidad_texto}</span>
             </div>
             <div class="d-flex justify-content-between mb-2">
                 <span class="text-muted">Cobrador:</span>
