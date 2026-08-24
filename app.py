@@ -1,4 +1,5 @@
 import os
+import re
 import urllib.parse
 from datetime import date
 from fastapi import FastAPI, Form, Request, Depends, HTTPException, status
@@ -47,13 +48,6 @@ class PagoDB(Base):
     prestamo = relationship("PrestamoDB", back_populates="pagos")
 
 Base.metadata.create_all(bind=engine)
-
-# Migración forzada y segura para PostgreSQL / SQLite
-with engine.begin() as conn:
-    try:
-        conn.execute(text("ALTER TABLE prestamos ADD COLUMN modalidad VARCHAR DEFAULT 'Diario';"))
-    except Exception:
-        pass  # Si la columna ya existe, ignora el error silenciosamente
 
 def get_db():
     db = SessionLocal()
@@ -679,23 +673,51 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
     """
 
 @app.post("/crear")
-def crear_prestamo(deudor: str = Form(...), monto: float = Form(...), interes: float = Form(...), modalidad: str = Form("Diario"), cobrador: str = Form(...), request: Request = None, db: Session = Depends(get_db)):
+def crear_prestamo(
+    deudor: str = Form(...),
+    monto: float = Form(...),
+    interes: float = Form(...),
+    modalidad: str = Form("Diario"),
+    cobrador: str = Form(...),
+    request: Request = None,
+    db: Session = Depends(get_db)
+):
     user = obtener_usuario_actual(request)
     if not user or user["rol"] != "admin":
         raise HTTPException(status_code=403, detail="Acceso denegado")
     
-    total_prestamos = db.query(PrestamoDB).count()
-    nuevo_id = f"PRES-{101 + total_prestamos}"
+    # Búsqueda dinámica del número correlativo más alto
+    todos_los_prestamos = db.query(PrestamoDB.id).all()
+    max_num = 100
+    
+    for (p_id,) in todos_los_prestamos:
+        numeros = re.findall(r'\d+', str(p_id))
+        if numeros:
+            num = int(numeros[0])
+            if num > max_num:
+                max_num = num
+                
+    nuevo_id = f"PRES-{max_num + 1}"
     total = monto + (monto * (interes / 100))
     
     nuevo_prestamo = PrestamoDB(
-        id=nuevo_id, deudor=deudor, monto=monto, interes=interes, total=total, saldo=total, modalidad=modalidad, cobrador_asignado=cobrador
+        id=nuevo_id,
+        deudor=deudor,
+        monto=monto,
+        interes=interes,
+        total=total,
+        saldo=total,
+        modalidad=modalidad,
+        cobrador_asignado=cobrador
     )
     
     db.add(nuevo_prestamo)
     db.commit()
     
-    return RedirectResponse(url=f"/?msg={urllib.parse.quote('Préstamo creado correctamente.')}", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(
+        url=f"/?msg={urllib.parse.quote('Préstamo creado correctamente.')}",
+        status_code=status.HTTP_302_FOUND
+    )
 
 @app.post("/eliminar/{prestamo_id}")
 def eliminar_prestamo(prestamo_id: str, request: Request = None, db: Session = Depends(get_db)):
