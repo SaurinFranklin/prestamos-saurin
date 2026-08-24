@@ -48,10 +48,10 @@ class PagoDB(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# Migración automática
+# Asegurar migración de columna modalidad en PostgreSQL/SQLite sin fallo
 with engine.connect() as conn:
     try:
-        conn.execute(text("ALTER TABLE prestamos ADD COLUMN modalidad VARCHAR DEFAULT 'Diario';"))
+        conn.execute(text("ALTER TABLE prestamos ADD COLUMN IF NOT EXISTS modalidad VARCHAR DEFAULT 'Diario';"))
         conn.commit()
     except Exception:
         pass
@@ -162,7 +162,6 @@ def obtener_html_panel(user: dict, db: Session, mensaje: str = "", error_msg: st
         nombre_cobrador = USUARIOS.get(p.cobrador_asignado, {}).get('nombre', p.cobrador_asignado)
         badge_estado = '<span class="badge bg-secondary">COMPLETADO</span>' if p.saldo <= 0 else f'<span class="badge bg-success">{p.estado}</span>'
 
-        # Atributos data-search para filtrado rápido con JS
         search_data = f"{p.id} {p.deudor} {nombre_cobrador} {modalidad_texto}".lower()
 
         tarjetas += f"""
@@ -286,7 +285,6 @@ def obtener_html_panel(user: dict, db: Session, mensaje: str = "", error_msg: st
             {alerta_err}
             {seccion_crear}
             
-            <!-- BUSCADOR EN TIEMPO REAL -->
             <div class="row mb-4">
                 <div class="col-12">
                     <div class="input-group">
@@ -304,7 +302,6 @@ def obtener_html_panel(user: dict, db: Session, mensaje: str = "", error_msg: st
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script>
-            // Filtrado dinámico sin recargar página
             document.getElementById('inputBuscador').addEventListener('keyup', function() {{
                 const query = this.value.toLowerCase().trim();
                 const items = document.querySelectorAll('.card-prestamo-item');
@@ -371,7 +368,6 @@ def registrar_pago(prestamo_id: str, monto: float = Form(...), request: Request 
     if user["rol"] != "admin" and prestamo.cobrador_asignado != user["username"]:
         raise HTTPException(status_code=403, detail="No autorizado")
     
-    # Validación: No permitir abonos menores o iguales a 0 o superiores al saldo restante
     if monto <= 0:
         return RedirectResponse(url=f"/?err={urllib.parse.quote('El monto debe ser mayor a cero.')}", status_code=status.HTTP_302_FOUND)
     if monto > prestamo.saldo:
@@ -424,7 +420,6 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
         <title>Recibo #{pago.id} - Préstamos Geison</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <style>
-            /* ESTILOS EN PANTALLA (Ticket Oscuro) */
             body {{
                 background-color: #0d0d0d;
                 color: #ffffff;
@@ -505,7 +500,6 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
                 display: none;
             }}
 
-            /* ESTILOS EN IMPRESIÓN / PDF (Boleta Blanca Limpia) */
             @page {{
                 margin: 10mm;
             }}
@@ -587,7 +581,6 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
     </head>
     <body>
 
-        <!-- VISTA EN PANTALLA (Ticket Oscuro) -->
         <div class="ticket-pantalla">
             <div class="ticket-header">
                 <div class="ticket-title">📌 PRÉSTAMOS GEISON</div>
@@ -624,7 +617,6 @@ def ver_comprobante(pago_id: int, request: Request, db: Session = Depends(get_db
             </div>
         </div>
 
-        <!-- VISTA EXCLUSIVA PARA IMPRESIÓN / PDF (Boleta Blanca) -->
         <div class="boleta-impresion">
             <div class="boleta-header">
                 <div class="boleta-title">
