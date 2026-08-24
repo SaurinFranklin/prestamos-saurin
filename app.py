@@ -48,13 +48,12 @@ class PagoDB(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# Asegurar migración de columna modalidad en PostgreSQL/SQLite sin fallo
-with engine.connect() as conn:
+# Migración forzada y segura para PostgreSQL / SQLite
+with engine.begin() as conn:
     try:
-        conn.execute(text("ALTER TABLE prestamos ADD COLUMN IF NOT EXISTS modalidad VARCHAR DEFAULT 'Diario';"))
-        conn.commit()
+        conn.execute(text("ALTER TABLE prestamos ADD COLUMN modalidad VARCHAR DEFAULT 'Diario';"))
     except Exception:
-        pass
+        pass  # Si la columna ya existe, ignora el error silenciosamente
 
 def get_db():
     db = SessionLocal()
