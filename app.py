@@ -78,7 +78,9 @@ def obtener_usuario_actual(request: Request):
         return serializer.loads(session_token, max_age=86400)
     except BadSignature:
         return None
-
+@app.head("/")
+def head_check():
+    return HTMLResponse(content="", status_code=200)
 # -------------------------------------------------------------------
 # Vistas HTML
 # -------------------------------------------------------------------
