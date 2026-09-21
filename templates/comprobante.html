@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% set modalidad = prestamo.modalidad or "Diario" %}
+{% block title %}Recibo #{{ pago.id }} - Préstamos Geison{% endblock %}
+{% block head %}<link href="/static/css/comprobante.css" rel="stylesheet">{% endblock %}
+{% block body_class %}comprobante{% endblock %}
+
+{% block body %}
+<!-- Vista en pantalla -->
+<div class="ticket-pantalla">
+    <div class="ticket-header">
+        <div class="ticket-title">📌 PRÉSTAMOS GEISON</div>
+        <div class="ticket-subtitle">Comprobante Oficial de Pago</div>
+    </div>
+
+    <div class="my-3">
+        <div class="ticket-row"><span>N° Recibo:</span> <strong>#{{ pago.id }}</strong></div>
+        <div class="ticket-row"><span>Fecha:</span> <strong>{{ pago.fecha }}</strong></div>
+        <div class="ticket-row"><span>Cliente:</span> <strong>{{ prestamo.deudor }}</strong></div>
+        <div class="ticket-row"><span>Modalidad:</span> <strong>{{ modalidad }}</strong></div>
+        <div class="ticket-row"><span>Cobrador:</span> <strong>{{ pago.registrado_por }}</strong></div>
+    </div>
+
+    <hr class="my-3 ticket-hr">
+
+    <div class="ticket-row align-items-center">
+        <span>Monto Abonado:</span>
+        <span class="monto-destacado">{{ pago.monto|soles }}</span>
+    </div>
+    <div class="ticket-row align-items-center">
+        <span>Saldo Restante:</span>
+        <span class="saldo-destacado">{{ prestamo.saldo|soles }}</span>
+    </div>
+
+    <hr class="my-3 ticket-hr">
+
+    <p class="text-center text-muted small my-3">¡Gracias por su puntualidad!</p>
+
+    <div class="d-grid gap-2">
+        <a href="{{ url_wa }}" target="_blank" class="btn btn-wa py-2">📱 Enviar por WhatsApp</a>
+        <button onclick="window.print()" class="btn btn-pdf py-2">🖨️ Imprimir / Guardar PDF</button>
+        <a href="/" class="btn btn-sm text-secondary text-center text-decoration-none mt-1">🔙 Volver al Panel</a>
+    </div>
+</div>
+
+<!-- Vista de impresión -->
+<div class="boleta-impresion">
+    <div class="boleta-header">
+        <div class="boleta-title">🧾 BOLETA DE COMPROBANTE DE PAGO</div>
+        <div class="mt-1 fs-6"><strong>Empresa:</strong> Préstamos Geison</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="info-grid">
+        <div>
+            <div><strong>Código:</strong> {{ prestamo.id }}</div>
+            <div><strong>Cliente:</strong> {{ prestamo.deudor }}</div>
+        </div>
+        <div class="text-end">
+            <div><strong>Fecha:</strong> {{ pago.fecha }}</div>
+            <div><strong>Modalidad:</strong> {{ modalidad }}</div>
+        </div>
+    </div>
+
+    <div class="info-box">
+        <div>
+            <div><strong>Monto Prestado: S/</strong></div>
+            <div class="info-box-val">{{ "%.2f"|format(prestamo.monto) }}</div>
+        </div>
+        <div>
+            <div><strong>Interés ({{ "%.1f"|format(prestamo.interes) }}%): S/</strong></div>
+            <div class="info-box-val">{{ "%.2f"|format(prestamo.monto_interes) }}</div>
+        </div>
+        <div>
+            <div><strong>Total a Pagar: S/</strong></div>
+            <div class="info-box-val">{{ "%.2f"|format(prestamo.total) }}</div>
+        </div>
+    </div>
+
+    <table class="tabla-concepto">
+        <thead>
+            <tr>
+                <th style="width: 65%;">Concepto</th>
+                <th style="width: 35%; text-align: right;">Monto Cobrado</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="text-secondary">Abono a Préstamo #{{ prestamo.id }}</td>
+                <td style="text-align: right; font-weight: bold;">{{ pago.monto|soles }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="saldo-line">Saldo Restante: {{ prestamo.saldo|soles }}</div>
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Login - Préstamos Geison{% endblock %}
+{% block body_class %}text-light d-flex align-items-center justify-content-center min-vh-100{% endblock %}
+
+{% block body %}
+<div class="card card-login text-white p-4 shadow-lg rounded-3 w-100" style="max-width: 380px;">
+    <h3 class="text-center text-info mb-3">📌 Préstamos Geison</h3>
+    <p class="text-center text-muted mb-4">Ingresa tus credenciales para acceder</p>
+
+    {% if error %}<div class="alert alert-danger py-2 small">{{ error }}</div>{% endif %}
+
+    <form action="/login" method="post">
+        <div class="mb-3">
+            <label class="form-label small">Usuario</label>
+            <input type="text" name="username" class="form-control bg-dark text-white border-secondary" required autofocus>
+        </div>
+        <div class="mb-4">
+            <label class="form-label small">Contraseña</label>
+            <input type="password" name="password" class="form-control bg-dark text-white border-secondary" required>
+        </div>
+        <button type="submit" class="btn btn-info w-100 fw-bold">Iniciar Sesión</button>
+    </form>
+</div>
+{% endblock %}
