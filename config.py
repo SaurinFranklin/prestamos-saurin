@@ -13,13 +13,6 @@ if DATABASE_URL.startswith("postgres://"):
 SECRET_KEY = os.getenv("SECRET_KEY", "geison_secret_key_super_segura")
 SESSION_MAX_AGE = 86400  # 24 horas, en segundos
 
-# --- Usuarios (idealmente mover a la base de datos con contraseñas hasheadas)
-USUARIOS = {
-    "Geison": {"password": "xiomara789", "rol": "admin", "nombre": "Administrador"},
-    "juan": {"password": "juan123", "rol": "cobrador", "nombre": "Juan Cobrador"},
-    "pedro": {"password": "pedro123", "rol": "cobrador", "nombre": "Pedro Cobrador"},
-}
-
 # --- Negocio ---------------------------------------------------------
 MODALIDADES = ["Diario", "Semanal", "Quincenal", "Mensual"]
 INTERES_POR_DEFECTO = 15

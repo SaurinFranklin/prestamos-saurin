@@ -34,7 +34,7 @@ def panel(request: Request, msg: str = "", err: str = "",
     return templates.TemplateResponse(request, "panel.html", {
         "user": user,
         "prestamos": services.prestamos_visibles(db, user),
-        "cobradores": services.listar_cobradores(),
+        "cobradores": services.listar_cobradores(db),
         "modalidades": MODALIDADES,
         "interes_defecto": INTERES_POR_DEFECTO,
         "msg": msg,
@@ -46,19 +46,20 @@ def panel(request: Request, msg: str = "", err: str = "",
 @router.post("/crear")
 def crear(deudor: str = Form(...), monto: float = Form(...), interes: float = Form(...),
           modalidad: str = Form("Diario"), cobrador: str = Form(...),
-          _: dict = Depends(requiere_admin), db: Session = Depends(get_db)):
+          user: dict = Depends(requiere_admin), db: Session = Depends(get_db)):
     try:
-        services.crear_prestamo(db, deudor, monto, interes, modalidad, cobrador)
+        services.crear_prestamo(db, deudor, monto, interes, modalidad, cobrador,
+                                user["id"])
     except services.ErrorNegocio as e:
         return _volver_al_panel(err=str(e))
     return _volver_al_panel(msg="Préstamo creado correctamente.")
 
 
 @router.post("/eliminar/{prestamo_id}")
-def eliminar(prestamo_id: str, _: dict = Depends(requiere_admin),
+def eliminar(prestamo_id: str, user: dict = Depends(requiere_admin),
              db: Session = Depends(get_db)):
     prestamo = services.obtener_prestamo(db, prestamo_id)
-    if prestamo:
+    if prestamo and services.tiene_acceso(user, prestamo):
         services.eliminar_prestamo(db, prestamo)
     return _volver_al_panel(msg="Préstamo eliminado.")
 

@@ -5,8 +5,9 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from config import ID_INICIAL, USUARIOS
-from models import PagoDB, PrestamoDB
+from config import ID_INICIAL
+from database import SessionLocal
+from models import PagoDB, PrestamoDB, UsuarioDB
 
 
 class ErrorNegocio(Exception):
@@ -14,18 +15,31 @@ class ErrorNegocio(Exception):
 
 
 # --- Usuarios ---------------------------------------------------------
-def listar_cobradores() -> list[tuple[str, str]]:
-    return [(user, d["nombre"]) for user, d in USUARIOS.items() if d["rol"] == "cobrador"]
+def listar_cobradores(db: Session) -> list[tuple[str, str]]:
+    filas = (
+        db.query(UsuarioDB.username, UsuarioDB.nombre)
+        .filter(UsuarioDB.rol == "cobrador")
+        .all()
+    )
+    return [(username, nombre) for username, nombre in filas]
 
 
 def nombre_usuario(username: str) -> str:
-    return USUARIOS.get(username, {}).get("nombre", username)
+    """Para plantillas: abre su propia sesión (no depende de la petición)."""
+    db = SessionLocal()
+    try:
+        usuario = db.query(UsuarioDB).filter(UsuarioDB.username == username).first()
+        return usuario.nombre if usuario else username
+    finally:
+        db.close()
 
 
 # --- Préstamos --------------------------------------------------------
 def prestamos_visibles(db: Session, usuario: dict) -> list[PrestamoDB]:
     consulta = db.query(PrestamoDB)
-    if usuario["rol"] != "admin":
+    if usuario["rol"] == "admin":
+        consulta = consulta.filter(PrestamoDB.usuario_id == usuario["id"])
+    else:
         consulta = consulta.filter(PrestamoDB.cobrador_asignado == usuario["username"])
     return consulta.all()
 
@@ -35,7 +49,9 @@ def obtener_prestamo(db: Session, prestamo_id: str) -> PrestamoDB | None:
 
 
 def tiene_acceso(usuario: dict, prestamo: PrestamoDB) -> bool:
-    return usuario["rol"] == "admin" or prestamo.cobrador_asignado == usuario["username"]
+    if usuario["rol"] == "admin":
+        return prestamo.usuario_id == usuario["id"]
+    return prestamo.cobrador_asignado == usuario["username"]
 
 
 def _generar_id(db: Session) -> str:
@@ -48,8 +64,8 @@ def _generar_id(db: Session) -> str:
 
 
 def crear_prestamo(db: Session, deudor: str, monto: float, interes: float,
-                   modalidad: str, cobrador: str) -> PrestamoDB:
-    if cobrador not in dict(listar_cobradores()):
+                   modalidad: str, cobrador: str, usuario_id: int) -> PrestamoDB:
+    if cobrador not in dict(listar_cobradores(db)):
         raise ErrorNegocio("Cobrador no válido.")
 
     total = monto + monto * (interes / 100)
@@ -62,6 +78,7 @@ def crear_prestamo(db: Session, deudor: str, monto: float, interes: float,
         saldo=total,
         modalidad=modalidad,
         cobrador_asignado=cobrador,
+        usuario_id=usuario_id,
     )
     db.add(prestamo)
     db.commit()

@@ -1,8 +1,10 @@
 """Rutas de login / logout."""
-from fastapi import APIRouter, Form, Request, status
+from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy.orm import Session
 
 from config import SESSION_MAX_AGE
+from database import get_db
 from security import crear_token, obtener_usuario_actual, verificar_credenciales
 from templating import templates
 
@@ -17,8 +19,9 @@ def login_page(request: Request):
 
 
 @router.post("/login")
-def login(request: Request, username: str = Form(...), password: str = Form(...)):
-    datos = verificar_credenciales(username, password)
+def login(request: Request, username: str = Form(...), password: str = Form(...),
+          db: Session = Depends(get_db)):
+    datos = verificar_credenciales(db, username, password)
     if not datos:
         return templates.TemplateResponse(
             request, "login.html",
@@ -26,7 +29,7 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
         )
 
     respuesta = RedirectResponse("/", status_code=status.HTTP_302_FOUND)
-    respuesta.set_cookie("session", crear_token(username, datos),
+    respuesta.set_cookie("session", crear_token(datos),
                          httponly=True, max_age=SESSION_MAX_AGE)
     return respuesta
 

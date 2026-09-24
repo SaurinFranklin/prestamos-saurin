@@ -7,8 +7,10 @@ from config import BASE_DIR
 from database import init_db
 from routers import auth, prestamos
 from security import NoAutenticado
+import migrate
 
 init_db()
+migrate.ejecutar()
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
