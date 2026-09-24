@@ -5,6 +5,16 @@ from sqlalchemy.orm import relationship
 from database import Base
 
 
+class UsuarioDB(Base):
+    __tablename__ = "usuarios"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    rol = Column(String, nullable=False, default="cobrador")
+    nombre = Column(String, nullable=False)
+
+
 class PrestamoDB(Base):
     __tablename__ = "prestamos"
 
@@ -17,6 +27,7 @@ class PrestamoDB(Base):
     modalidad = Column(String, default="Diario")
     estado = Column(String, default="Puntual")
     cobrador_asignado = Column(String, nullable=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
 
     pagos = relationship("PagoDB", back_populates="prestamo", cascade="all, delete-orphan")
 
