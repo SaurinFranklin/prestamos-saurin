@@ -29,6 +29,15 @@ def ejecutar() -> None:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE prestamos ADD COLUMN usuario_id INTEGER"))
 
+    # 1b. Nuevas columnas para mejoras (telefono, metodo_pago)
+    if not _columna_existe("prestamos", "telefono"):
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE prestamos ADD COLUMN telefono VARCHAR"))
+
+    if not _columna_existe("prestamos", "metodo_pago"):
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE prestamos ADD COLUMN metodo_pago VARCHAR DEFAULT 'Efectivo'"))
+
     # 2. Semilla de usuarios (solo si no existen)
     from models import PrestamoDB, UsuarioDB
 

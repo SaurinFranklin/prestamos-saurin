@@ -37,6 +37,9 @@
 
     <div class="d-grid gap-2">
         <a href="{{ url_wa }}" target="_blank" class="btn btn-wa py-2">📱 Enviar por WhatsApp</a>
+        {% if url_notificar %}
+        <a href="{{ url_notificar }}" target="_blank" class="btn btn-success py-2">✅ Notificar al Cliente</a>
+        {% endif %}
         <button onclick="window.print()" class="btn btn-pdf py-2">🖨️ Imprimir / Guardar PDF</button>
         <a href="/" class="btn btn-sm text-secondary text-center text-decoration-none mt-1">🔙 Volver al Panel</a>
     </div>

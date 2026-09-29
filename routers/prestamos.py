@@ -46,10 +46,11 @@ def panel(request: Request, msg: str = "", err: str = "",
 @router.post("/crear")
 def crear(deudor: str = Form(...), monto: float = Form(...), interes: float = Form(...),
           modalidad: str = Form("Diario"), cobrador: str = Form(...),
+          telefono: str = Form(""), metodo_pago: str = Form("Efectivo"),
           user: dict = Depends(requiere_admin), db: Session = Depends(get_db)):
     try:
         services.crear_prestamo(db, deudor, monto, interes, modalidad, cobrador,
-                                user["id"])
+                                user["id"], telefono, metodo_pago)
     except services.ErrorNegocio as e:
         return _volver_al_panel(err=str(e))
     return _volver_al_panel(msg="Préstamo creado correctamente.")
@@ -95,4 +96,5 @@ def comprobante(pago_id: int, request: Request,
         "pago": pago,
         "prestamo": pago.prestamo,
         "url_wa": services.url_whatsapp(pago),
+        "url_notificar": services.notificar_pago_cliente(pago),
     })

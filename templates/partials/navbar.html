@@ -2,6 +2,9 @@
     <div class="container">
         <a class="navbar-brand fw-bold text-info" href="/">📌 Préstamos Geison</a>
         <div class="d-flex align-items-center gap-3">
+            {% if user.rol in ["admin", "gerente", "supervisor"] %}
+            <a href="/reportes" class="btn btn-sm btn-outline-info">📊 Reportes</a>
+            {% endif %}
             <span class="small">Usuario: <strong>{{ user.nombre }}</strong> ({{ user.rol|upper }})</span>
             <a href="/logout" class="btn btn-sm btn-outline-light">Cerrar Sesión</a>
         </div>
