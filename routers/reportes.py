@@ -1,6 +1,8 @@
 """Rutas de reportes y estadísticas."""
+from datetime import date
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
+from sqlalchemy import cast, Date, func
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -14,7 +16,6 @@ router = APIRouter()
 def reportes(request: Request, user: dict = Depends(requiere_admin),
              db: Session = Depends(get_db)):
     from models import PagoDB, PrestamoDB, UsuarioDB
-    from sqlalchemy import func
 
     total_prestamos = db.query(PrestamoDB).count()
     prestamos_activos = db.query(PrestamoDB).filter(PrestamoDB.saldo > 0).count()
@@ -24,8 +25,10 @@ def reportes(request: Request, user: dict = Depends(requiere_admin),
     total_cobrado = db.query(func.sum(PagoDB.monto)).scalar() or 0
     total_por_cobrar = db.query(func.sum(PrestamoDB.saldo)).scalar() or 0
 
+    # SOLUCIÓN: Castear PagoDB.fecha a Date y comparar contra la fecha actual de Python
+    hoy = date.today()
     pagos_hoy = db.query(PagoDB).filter(
-        PagoDB.fecha == func.date("now")
+        cast(PagoDB.fecha, Date) == hoy
     ).count()
 
     cobradores = db.query(UsuarioDB).filter(UsuarioDB.rol == "cobrador").all()
