@@ -5,12 +5,15 @@ from fastapi.staticfiles import StaticFiles
 
 from config import BASE_DIR
 from database import init_db
-from routers import auth, prestamos
+from routers import auth, prestamos, reportes
 from security import NoAutenticado
 import migrate
 
 init_db()
 migrate.ejecutar()
+
+import backup
+backup.crear_respaldo()
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -29,3 +32,4 @@ def health_check():
 
 app.include_router(auth.router)
 app.include_router(prestamos.router)
+app.include_router(reportes.router)

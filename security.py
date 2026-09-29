@@ -78,6 +78,12 @@ def requiere_usuario(request: Request) -> dict:
 
 
 def requiere_admin(usuario: dict = Depends(requiere_usuario)) -> dict:
-    if usuario["rol"] != "admin":
+    if usuario["rol"] not in ("admin", "gerente"):
+        raise HTTPException(status_code=403, detail="Acceso denegado")
+    return usuario
+
+
+def requiere_supervisor(usuario: dict = Depends(requiere_usuario)) -> dict:
+    if usuario["rol"] not in ("admin", "gerente", "supervisor"):
         raise HTTPException(status_code=403, detail="Acceso denegado")
     return usuario

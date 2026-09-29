@@ -24,6 +24,17 @@
                 {% endfor %}
             </select>
         </div>
+        <div class="col-md-2">
+            <input type="tel" name="telefono" class="form-control bg-dark text-white border-secondary" placeholder="Teléfono (opcional)">
+        </div>
+        <div class="col-md-2">
+            <select name="metodo_pago" class="form-select bg-dark text-white border-secondary">
+                <option value="Efectivo">Efectivo</option>
+                <option value="Yape">Yape</option>
+                <option value="Plin">Plin</option>
+                <option value="Transferencia">Transferencia</option>
+            </select>
+        </div>
         <div class="col-md-1">
             <button type="submit" class="btn btn-info w-100 fw-bold">Guardar</button>
         </div>

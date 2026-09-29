@@ -28,6 +28,8 @@ class PrestamoDB(Base):
     estado = Column(String, default="Puntual")
     cobrador_asignado = Column(String, nullable=False)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    telefono = Column(String, nullable=True)
+    metodo_pago = Column(String, default="Efectivo")
 
     pagos = relationship("PagoDB", back_populates="prestamo", cascade="all, delete-orphan")
 

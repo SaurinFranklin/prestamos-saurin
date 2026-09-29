@@ -39,6 +39,8 @@ def prestamos_visibles(db: Session, usuario: dict) -> list[PrestamoDB]:
     consulta = db.query(PrestamoDB)
     if usuario["rol"] == "admin":
         consulta = consulta.filter(PrestamoDB.usuario_id == usuario["id"])
+    elif usuario["rol"] in ("gerente", "supervisor"):
+        pass
     else:
         consulta = consulta.filter(PrestamoDB.cobrador_asignado == usuario["username"])
     return consulta.all()
@@ -51,6 +53,8 @@ def obtener_prestamo(db: Session, prestamo_id: str) -> PrestamoDB | None:
 def tiene_acceso(usuario: dict, prestamo: PrestamoDB) -> bool:
     if usuario["rol"] == "admin":
         return prestamo.usuario_id == usuario["id"]
+    if usuario["rol"] in ("gerente", "supervisor"):
+        return True
     return prestamo.cobrador_asignado == usuario["username"]
 
 
@@ -64,7 +68,8 @@ def _generar_id(db: Session) -> str:
 
 
 def crear_prestamo(db: Session, deudor: str, monto: float, interes: float,
-                   modalidad: str, cobrador: str, usuario_id: int) -> PrestamoDB:
+                   modalidad: str, cobrador: str, usuario_id: int,
+                   telefono: str = "", metodo_pago: str = "Efectivo") -> PrestamoDB:
     if cobrador not in dict(listar_cobradores(db)):
         raise ErrorNegocio("Cobrador no válido.")
 
@@ -79,6 +84,8 @@ def crear_prestamo(db: Session, deudor: str, monto: float, interes: float,
         modalidad=modalidad,
         cobrador_asignado=cobrador,
         usuario_id=usuario_id,
+        telefono=telefono,
+        metodo_pago=metodo_pago,
     )
     db.add(prestamo)
     db.commit()
@@ -121,9 +128,43 @@ def url_whatsapp(pago: PagoDB) -> str:
         f"Interés ({p.interes:.1f}%): S/ {p.monto_interes:.2f}\n"
         f"Total a Pagar: S/ {p.total:.2f}\n\n"
         f"Fecha: {pago.fecha}\n"
-        f"Modalidad: {p.modalidad or 'Diario'}\n\n"
+        f"Modalidad: {p.modalidad or 'Diario'}\n"
+        f"Método de Pago: {p.metodo_pago or 'Efectivo'}\n\n"
         "Concepto | Monto Cobrado\n"
         f"Abono a Préstamo #{p.id} | S/ {pago.monto:.2f}\n\n"
         f"Saldo Restante: S/ {p.saldo:.2f}"
     )
     return f"https://api.whatsapp.com/send?text={urllib.parse.quote(texto)}"
+
+
+def url_whatsapp_cliente(prestamo: PrestamoDB, mensaje: str = "") -> str:
+    """Genera URL de WhatsApp para enviar mensaje al cliente."""
+    if not prestamo.telefono:
+        return ""
+    texto = mensaje or (
+        f"Estimado/a {prestamo.deudor}, le recordamos que tiene un préstamo "
+        f"pendiente de S/ {prestamo.saldo:.2f}. Por favor, realice su pago "
+        f"a tiempo. Gracias."
+    )
+    telefono = prestamo.telefono.replace(" ", "").replace("-", "")
+    if not telefono.startswith("+"):
+        telefono = "+51" + telefono
+    return f"https://api.whatsapp.com/send?phone={telefono}&text={urllib.parse.quote(texto)}"
+
+
+def notificar_pago_cliente(pago: PagoDB) -> str:
+    """Genera URL para notificar al cliente sobre su pago."""
+    p = pago.prestamo
+    if not p.telefono:
+        return ""
+    texto = (
+        f"✅ *PAGO RECIBIDO*\n\n"
+        f"Estimado/a {p.deudor}, hemos recibido su pago de S/ {pago.monto:.2f}.\n\n"
+        f"Préstamo: {p.id}\n"
+        f"Saldo restante: S/ {p.saldo:.2f}\n\n"
+        f"¡Gracias por su puntualidad!"
+    )
+    telefono = p.telefono.replace(" ", "").replace("-", "")
+    if not telefono.startswith("+"):
+        telefono = "+51" + telefono
+    return f"https://api.whatsapp.com/send?phone={telefono}&text={urllib.parse.quote(texto)}"

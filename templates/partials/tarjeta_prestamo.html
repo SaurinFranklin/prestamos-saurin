@@ -17,7 +17,7 @@
                     <span class="badge bg-success">{{ p.estado }}</span>
                 {% endif %}
 
-                {% if user.rol == "admin" %}
+                {% if user.rol in ["admin", "gerente"] %}
                 <form action="/eliminar/{{ p.id }}" method="post" class="d-inline"
                       onsubmit="return confirm('¿Eliminar préstamo?');">
                     <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
