@@ -1,42 +1,103 @@
 <div class="card bg-black text-white p-3 mb-4 shadow border border-secondary">
-    <h5 class="text-info mb-3">➕ Crear Nuevo Préstamo</h5>
-    <form action="/crear" method="post" class="row g-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="text-info mb-0">➕ Otorgar Nuevo Préstamo</h5>
+        <span class="badge bg-secondary">Cálculo de Amortización Automático</span>
+    </div>
+
+    <form action="/crear" method="post" id="formCrearPrestamo" class="row g-3">
+        <!-- Sección 1: Datos del Deudor -->
+        <div class="col-12">
+            <h6 class="text-muted border-bottom border-secondary pb-1 mb-2">👤 Datos del Cliente</h6>
+        </div>
         <div class="col-md-3">
-            <input type="text" name="deudor" class="form-control bg-dark text-white border-secondary" placeholder="Nombre Deudor" required>
+            <label class="form-label small text-muted">DNI / Documento</label>
+            <input type="text" name="documento" class="form-control bg-dark text-white border-secondary" placeholder="Ej: 72345678">
+        </div>
+        <div class="col-md-5">
+            <label class="form-label small text-muted">Nombre Completo <span class="text-danger">*</span></label>
+            <input type="text" name="deudor" class="form-control bg-dark text-white border-secondary" placeholder="Nombres y Apellidos" required>
         </div>
         <div class="col-md-2">
-            <input type="number" step="0.01" min="1" name="monto" class="form-control bg-dark text-white border-secondary" placeholder="Monto (S/)" required>
+            <label class="form-label small text-muted">Teléfono / WhatsApp</label>
+            <input type="tel" name="telefono" class="form-control bg-dark text-white border-secondary" placeholder="987654321">
         </div>
         <div class="col-md-2">
-            <input type="number" step="0.1" min="0" name="interes" class="form-control bg-dark text-white border-secondary" placeholder="Interés %" value="{{ interes_defecto }}" required>
+            <label class="form-label small text-muted">Dirección</label>
+            <input type="text" name="direccion" class="form-control bg-dark text-white border-secondary" placeholder="Av. Principal #123">
+        </div>
+
+        <!-- Sección 2: Condiciones del Préstamo -->
+        <div class="col-12 mt-3">
+            <h6 class="text-muted border-bottom border-secondary pb-1 mb-2">💰 Condiciones Financieras</h6>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small text-muted">Capital Prestado (S/) <span class="text-danger">*</span></label>
+            <input type="number" step="0.01" min="1" id="montoInput" name="monto" class="form-control bg-dark text-white border-secondary" placeholder="1000.00" required>
         </div>
         <div class="col-md-2">
-            <select name="modalidad" class="form-select bg-dark text-white border-secondary" required>
+            <label class="form-label small text-muted">Tasa Interés (%) <span class="text-danger">*</span></label>
+            <input type="number" step="0.1" min="0" id="interesInput" name="interes" class="form-control bg-dark text-white border-secondary" value="{{ interes_defecto }}" required>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small text-muted">Modalidad de Pago</label>
+            <select name="modalidad" id="modalidadInput" class="form-select bg-dark text-white border-secondary" required>
                 {% for m in modalidades %}
                 <option value="{{ m }}" {{ "selected" if loop.first }}>{{ m }}</option>
                 {% endfor %}
             </select>
         </div>
         <div class="col-md-2">
+            <label class="form-label small text-muted">N° de Cuotas <span class="text-danger">*</span></label>
+            <input type="number" min="1" max="360" id="cuotasInput" name="numero_cuotas" class="form-control bg-dark text-white border-secondary" value="24" required>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small text-muted">Cobrador Asignado <span class="text-danger">*</span></label>
             <select name="cobrador" class="form-select bg-dark text-white border-secondary" required>
                 {% for username, nombre in cobradores %}
                 <option value="{{ username }}">{{ nombre }}</option>
                 {% endfor %}
             </select>
         </div>
-        <div class="col-md-2">
-            <input type="tel" name="telefono" class="form-control bg-dark text-white border-secondary" placeholder="Teléfono (opcional)">
-        </div>
-        <div class="col-md-2">
+
+        <!-- Sección 3: Resumen y Desembolso -->
+        <div class="col-md-4">
+            <label class="form-label small text-muted">Método de Desembolso</label>
             <select name="metodo_pago" class="form-select bg-dark text-white border-secondary">
                 <option value="Efectivo">Efectivo</option>
                 <option value="Yape">Yape</option>
                 <option value="Plin">Plin</option>
-                <option value="Transferencia">Transferencia</option>
+                <option value="Transferencia">Transferencia Bancaria</option>
             </select>
         </div>
-        <div class="col-md-1">
-            <button type="submit" class="btn btn-info w-100 fw-bold">Guardar</button>
+        <div class="col-md-5 d-flex align-items-center">
+            <div class="p-2 bg-dark rounded border border-secondary w-100 text-center small">
+                Total a devolver: <strong class="text-info" id="prevTotal">S/ 0.00</strong> | 
+                Por cuota: <strong class="text-success" id="prevCuota">S/ 0.00</strong>
+            </div>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+            <button type="submit" class="btn btn-info w-100 fw-bold">💾 Registrar Préstamo</button>
         </div>
     </form>
 </div>
+
+<script>
+    // Cálculo en vivo del cronograma aproximado
+    function actualizarCalculoEnVivo() {
+        const monto = parseFloat(document.getElementById('montoInput').value) || 0;
+        const interes = parseFloat(document.getElementById('interesInput').value) || 0;
+        const cuotas = parseInt(document.getElementById('cuotasInput').value) || 1;
+
+        const interesTotal = monto * (interes / 100);
+        const total = monto + interesTotal;
+        const porCuota = cuotas > 0 ? (total / cuotas) : total;
+
+        document.getElementById('prevTotal').textContent = 'S/ ' + total.toFixed(2);
+        document.getElementById('prevCuota').textContent = 'S/ ' + porCuota.toFixed(2);
+    }
+
+    document.getElementById('montoInput').addEventListener('input', actualizarCalculoEnVivo);
+    document.getElementById('interesInput').addEventListener('input', actualizarCalculoEnVivo);
+    document.getElementById('cuotasInput').addEventListener('input', actualizarCalculoEnVivo);
+    actualizarCalculoEnVivo();
+</script>

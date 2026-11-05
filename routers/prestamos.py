@@ -1,4 +1,3 @@
-"""Rutas de préstamos, pagos y comprobantes."""
 import urllib.parse
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
@@ -27,7 +26,7 @@ def _prestamo_o_404(db: Session, prestamo_id: str):
     return prestamo
 
 
-# --- Panel ------------------------------------------------------------
+# --- Panel Principal ---
 @router.get("/", response_class=HTMLResponse)
 def panel(request: Request, msg: str = "", err: str = "",
           user: dict = Depends(requiere_usuario), db: Session = Depends(get_db)):
@@ -42,18 +41,43 @@ def panel(request: Request, msg: str = "", err: str = "",
     })
 
 
-# --- Crear / eliminar (solo admin) -----------------------------------
+# ---Crear / Eliminar Préstamos (Solo Admin) --
 @router.post("/crear")
-def crear(deudor: str = Form(...), monto: float = Form(...), interes: float = Form(...),
-          modalidad: str = Form("Diario"), cobrador: str = Form(...),
-          telefono: str = Form(""), metodo_pago: str = Form("Efectivo"),
-          user: dict = Depends(requiere_admin), db: Session = Depends(get_db)):
+def crear(
+    deudor: str = Form(...),
+    monto: float = Form(...),
+    interes: float = Form(...),
+    modalidad: str = Form("Diario"),
+    cobrador: str = Form(...),
+    telefono: str = Form(""),
+    metodo_pago: str = Form("Efectivo"),
+    documento: str = Form(""),
+    direccion: str = Form(""),
+    numero_cuotas: int = Form(1),
+    user: dict = Depends(requiere_admin),
+    db: Session = Depends(get_db)
+):
     try:
-        services.crear_prestamo(db, deudor, monto, interes, modalidad, cobrador,
-                                user["id"], telefono, metodo_pago)
+        services.crear_prestamo(
+            db=db,
+            deudor=deudor,
+            monto=monto,
+            interes=interes,
+            modalidad=modalidad,
+            cobrador=cobrador,
+            usuario_id=user["id"],
+            telefono=telefono,
+            metodo_pago=metodo_pago,
+            documento=documento,
+            direccion=direccion,
+            numero_cuotas=numero_cuotas
+        )
     except services.ErrorNegocio as e:
         return _volver_al_panel(err=str(e))
-    return _volver_al_panel(msg="Préstamo creado correctamente.")
+    except Exception as e:
+        db.rollback()
+        return _volver_al_panel(err=f"Error al guardar préstamo: {str(e)}")
+    return _volver_al_panel(msg="Préstamo y cronograma de cuotas creados correctamente.")
 
 
 @router.post("/eliminar/{prestamo_id}")
@@ -65,18 +89,33 @@ def eliminar(prestamo_id: str, user: dict = Depends(requiere_admin),
     return _volver_al_panel(msg="Préstamo eliminado.")
 
 
-# --- Pagos ------------------------------------------------------------
 @router.post("/pagar/{prestamo_id}")
-def pagar(prestamo_id: str, monto: float = Form(...),
-          user: dict = Depends(requiere_usuario), db: Session = Depends(get_db)):
+def pagar(
+    prestamo_id: str,
+    monto: float = Form(...),
+    metodo_pago: str = Form("Efectivo"),
+    cuota_id: int | None = Form(None),
+    user: dict = Depends(requiere_usuario),
+    db: Session = Depends(get_db)
+):
     prestamo = _prestamo_o_404(db, prestamo_id)
     if not services.tiene_acceso(user, prestamo):
         raise HTTPException(status_code=403, detail="No autorizado")
 
     try:
-        pago = services.registrar_pago(db, prestamo, monto, user["username"])
+        pago = services.registrar_pago(
+            db=db,
+            prestamo=prestamo,
+            monto=monto,
+            registrado_por=user["username"],
+            metodo_pago=metodo_pago,
+            cuota_id=cuota_id
+        )
     except services.ErrorNegocio as e:
         return _volver_al_panel(err=str(e))
+    except Exception as e:
+        db.rollback()
+        return _volver_al_panel(err=f"Error al guardar préstamo: {str(e)}")
 
     return RedirectResponse(f"/comprobante/{pago.id}", status_code=status.HTTP_302_FOUND)
 
@@ -97,4 +136,23 @@ def comprobante(pago_id: int, request: Request,
         "prestamo": pago.prestamo,
         "url_wa": services.url_whatsapp(pago),
         "url_notificar": services.notificar_pago_cliente(pago),
+    })
+
+
+@router.get("/cronograma/{prestamo_id}", response_class=HTMLResponse)
+def ver_cronograma_oficial(
+    prestamo_id: str,
+    request: Request,
+    user: dict = Depends(requiere_usuario),
+    db: Session = Depends(get_db)
+):
+    """Página de contrato y cronograma de amortización oficial lista para imprimir / PDF."""
+    prestamo = _prestamo_o_404(db, prestamo_id)
+    if not services.tiene_acceso(user, prestamo):
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    return templates.TemplateResponse(request, "cronograma.html", {
+        "p": prestamo,
+        "cuotas": sorted(prestamo.cuotas, key=lambda c: c.numero_cuota),
+        "user": user,
     })

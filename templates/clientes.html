@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Directorio de Clientes — Préstamos Geison{% endblock %}
+
+{% block body %}
+{% include "partials/navbar.html" %}
+
+<div class="container pb-5">
+    {% include "partials/alertas.html" %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h3 class="fw-bold text-info mb-0">👥 Directorio de Clientes</h3>
+            <p class="text-muted small mb-0">Historial crediticio, calificación de riesgo y saldos consolidados.</p>
+        </div>
+        <div>
+            <span class="badge bg-dark border border-secondary p-2">
+                Total Registrados: <strong class="text-info">{{ clientes|length }}</strong>
+            </span>
+        </div>
+    </div>
+
+    <!-- Buscador de Clientes -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <form action="/clientes" method="get">
+                <div class="input-group">
+                    <span class="input-group-text bg-black text-info border-secondary">🔍 Buscar</span>
+                    <input type="text" name="q" value="{{ q }}"
+                           class="form-control bg-dark text-white border-secondary p-2"
+                           placeholder="Buscar por DNI, Nombre o Teléfono...">
+                    {% if q %}
+                        <a href="/clientes" class="btn btn-outline-secondary">Limpiar</a>
+                    {% endif %}
+                    <button type="submit" class="btn btn-info fw-bold">Buscar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de Clientes -->
+    <div class="card bg-black text-white border border-secondary shadow">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover table-striped mb-0 align-middle">
+                    <thead class="border-secondary text-muted small">
+                        <tr>
+                            <th>Cliente</th>
+                            <th>DNI / Identificación</th>
+                            <th>Teléfono / WhatsApp</th>
+                            <th class="text-center">Calificación</th>
+                            <th class="text-center">Préstamos</th>
+                            <th class="text-end">Deuda Total</th>
+                            <th class="text-center">Estado Cartera</th>
+                            <th class="text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in clientes %}
+                        {% set c = item.cliente %}
+                        <tr>
+                            <td>
+                                <a href="/clientes/{{ c.id }}" class="text-decoration-none fw-bold text-info">
+                                    {{ c.nombre_completo }}
+                                </a>
+                                {% if c.direccion %}
+                                    <small class="text-muted d-block">{{ c.direccion }}</small>
+                                {% endif %}
+                            </td>
+                            <td><code>{{ c.documento_identidad }}</code></td>
+                            <td>
+                                {% if c.telefono %}
+                                    <a href="https://api.whatsapp.com/send?phone=+51{{ c.telefono|replace(' ', '')|replace('-', '') }}"
+                                       target="_blank" class="text-success text-decoration-none small">
+                                        💬 {{ c.telefono }}
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted small">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if c.calificacion == "Bueno" %}
+                                    <span class="badge bg-success">Excelente</span>
+                                {% elif c.calificacion == "Regular" %}
+                                    <span class="badge bg-warning text-dark">Regular</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Riesgo Alto</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-dark border border-secondary">
+                                    {{ item.prestamos_activos }} act. / {{ item.total_prestamos }} tot.
+                                </span>
+                            </td>
+                            <td class="text-end fw-bold {{ 'text-danger' if item.saldo_total > 0 else 'text-success' }}">
+                                {{ item.saldo_total|soles }}
+                            </td>
+                            <td class="text-center">
+                                {% if item.estado_salud == "En Mora" %}
+                                    <span class="badge bg-danger">⚠️ En Mora</span>
+                                {% elif item.estado_salud == "Al Día" %}
+                                    <span class="badge bg-success">Al Día</span>
+                                {% elif item.estado_salud == "Sin Deuda" %}
+                                    <span class="badge bg-secondary">Sin Deuda</span>
+                                {% else %}
+                                    <span class="badge bg-dark border border-secondary text-muted">Nuevo</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <a href="/clientes/{{ c.id }}" class="btn btn-sm btn-outline-info py-0 px-2">
+                                    👁️ Ver Ficha
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-4">
+                                No se encontraron clientes registrados que coincidan con la búsqueda.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

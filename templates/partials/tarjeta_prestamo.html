@@ -1,60 +1,157 @@
 {% set modalidad = p.modalidad or "Diario" %}
 {% set cobrador = nombre_usuario(p.cobrador_asignado) %}
+{% set pagado = p.total - p.saldo %}
+{% set porcentaje = ((pagado / p.total) * 100)|round|int if p.total > 0 else 0 %}
+{% set dni = p.cliente.documento_identidad if p.cliente else "" %}
 
-<div class="col-md-6 mb-4 card-prestamo-item"
-     data-search="{{ (p.id ~ ' ' ~ p.deudor ~ ' ' ~ cobrador ~ ' ' ~ modalidad)|lower }}">
-    <div class="card bg-black text-white shadow border border-secondary">
+<div class="col-lg-6 col-12 mb-4 card-prestamo-item"
+     data-search="{{ (p.id ~ ' ' ~ p.deudor ~ ' ' ~ dni ~ ' ' ~ cobrador ~ ' ' ~ modalidad)|lower }}">
+    <div class="card bg-black text-white shadow border {{ 'border-danger' if p.estado == 'En Mora' else 'border-secondary' }}">
 
         <div class="card-header bg-dark d-flex justify-content-between align-items-center border-bottom border-secondary">
             <div>
                 <h5 class="mb-0 text-info fw-bold">#{{ p.id }} — {{ p.deudor }}</h5>
-                <small class="badge text-muted border border-secondary mt-1">🗓️ {{ modalidad }}</small>
+                <div class="d-flex gap-2 align-items-center mt-1">
+                    <small class="badge bg-dark border border-secondary text-info">🗓️ {{ modalidad }} ({{ p.cuotas|length }} cuotas)</small>
+                    {% if dni %}
+                        <small class="text-muted">DNI: <strong class="text-light">{{ dni }}</strong></small>
+                    {% endif %}
+                </div>
             </div>
-            <div>
+            <div class="d-flex align-items-center gap-2">
                 {% if p.completado %}
                     <span class="badge bg-secondary">COMPLETADO</span>
+                {% elif p.estado == "En Mora" %}
+                    <span class="badge bg-danger animate-pulse">⚠️ EN MORA</span>
                 {% else %}
-                    <span class="badge bg-success">{{ p.estado }}</span>
+                    <span class="badge bg-success">AL DÍA</span>
                 {% endif %}
 
                 {% if user.rol in ["admin", "gerente"] %}
                 <form action="/eliminar/{{ p.id }}" method="post" class="d-inline"
-                      onsubmit="return confirm('¿Eliminar préstamo?');">
-                    <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
+                      onsubmit="return confirm('¿Está seguro de eliminar este préstamo y sus cuotas?');">
+                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">🗑️</button>
                 </form>
                 {% endif %}
             </div>
         </div>
 
         <div class="card-body">
-            <p class="small text-muted mb-2">Cobrador: <strong>{{ cobrador }}</strong></p>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <small class="text-muted">Cobrador: <strong class="text-light">{{ cobrador }}</strong></small>
+                {% if p.telefono %}
+                    <a href="{{ url_whatsapp_cliente(p) }}" target="_blank" class="btn btn-sm btn-outline-success py-0 px-2 small">
+                        💬 WhatsApp
+                    </a>
+                {% endif %}
+            </div>
 
-            <div class="row text-center my-3">
+            <div class="row text-center my-3 g-2">
                 <div class="col-4">
-                    <small class="text-muted d-block">Prestado</small>
-                    <strong>{{ p.monto|soles }}</strong>
+                    <div class="bg-dark p-2 rounded border border-secondary">
+                        <small class="text-muted d-block">Capital</small>
+                        <strong class="text-light">{{ p.monto|soles }}</strong>
+                    </div>
                 </div>
                 <div class="col-4">
-                    <small class="text-muted d-block">Total (+Int)</small>
-                    <strong class="text-info">{{ p.total|soles }}</strong>
+                    <div class="bg-dark p-2 rounded border border-secondary">
+                        <small class="text-muted d-block">Total (+Int)</small>
+                        <strong class="text-info">{{ p.total|soles }}</strong>
+                    </div>
                 </div>
                 <div class="col-4">
-                    <small class="text-muted d-block">Saldo</small>
-                    <strong class="{{ 'text-success' if p.completado else 'text-danger' }}">{{ p.saldo|soles }}</strong>
+                    <div class="bg-dark p-2 rounded border border-secondary">
+                        <small class="text-muted d-block">Saldo</small>
+                        <strong class="{{ 'text-success' if p.completado else 'text-danger' }}">{{ p.saldo|soles }}</strong>
+                    </div>
                 </div>
             </div>
 
-            <button class="btn btn-sm btn-outline-info w-100 mb-2" type="button"
-                    data-bs-toggle="collapse" data-bs-target="#historial-{{ p.id }}">
-                📋 Ver Historial ({{ p.pagos|length }})
-            </button>
+            <div class="mb-3">
+                <div class="d-flex justify-content-between small text-muted mb-1">
+                    <span>Progreso de pago:</span>
+                    <strong class="text-info">{{ porcentaje }}% ({{ pagado|soles }})</strong>
+                </div>
+                <div class="progress bg-dark border border-secondary" style="height: 8px;">
+                    <div class="progress-bar bg-info" role="progressbar" style="width: {{ porcentaje }}%;"
+                    aria-valuenow="{{ porcentaje }}" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-sm btn-outline-info flex-fill" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#cronograma-{{ p.id }}">
+                    📅 Ver Cuotas ({{ p.cuotas|length }})
+                </button>
+                <button class="btn btn-sm btn-outline-secondary flex-fill" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#historial-{{ p.id }}">
+                    🧾 Ver Pagos ({{ p.pagos|length }})
+                </button>
+            </div>
+
+            <div class="collapse mb-3" id="cronograma-{{ p.id }}">
+                <div class="card card-body bg-dark border-secondary p-2">
+                    <h6 class="text-info small mb-2 fw-bold">Calendario de Amortización:</h6>
+                    <div style="max-height: 220px; overflow-y: auto;">
+                        <table class="table table-dark table-sm table-striped mb-0 small text-center">
+                            <thead>
+                                <tr class="text-muted border-secondary">
+                                    <th>N°</th>
+                                    <th>Vence</th>
+                                    <th>Monto</th>
+                                    <th>Saldo</th>
+                                    <th>Estado</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for c in p.cuotas %}
+                                <tr>
+                                    <td>{{ c.numero_cuota }}</td>
+                                    <td>{{ c.fecha_vencimiento }}</td>
+                                    <td>{{ c.total_cuota|soles }}</td>
+                                    <td>{{ c.saldo_cuota|soles }}</td>
+                                    <td>
+                                        {% if c.estado == "Pagada" %}
+                                            <span class="badge bg-success">Pagada</span>
+                                        {% elif c.estado == "Vencida" %}
+                                            <span class="badge bg-danger">Vencida</span>
+                                        {% elif c.estado == "Parcial" %}
+                                            <span class="badge bg-info text-dark">Parcial</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Pendiente</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if c.saldo_cuota > 0 and not p.completado %}
+                                            <button type="button" class="btn btn-xs btn-outline-success py-0 px-1"
+                                                    onclick="cargarAbono('{{ p.id }}', '{{ c.id }}', '{{ c.saldo_cuota }}')"
+                                                    title="Pagar esta cuota">
+                                                Pagar
+                                            </button>
+                                        {% else %}
+                                            <span class="text-muted">✓</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-muted">Sin cuotas registradas</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
 
             <div class="collapse mb-3" id="historial-{{ p.id }}">
                 <div class="card card-body bg-dark border-secondary p-2">
+                    <h6 class="text-info small mb-2 fw-bold">Historial de Recibos:</h6>
                     {% for pago in p.pagos|sort(attribute="id", reverse=true) %}
                     <div class="d-flex justify-content-between align-items-center border-bottom border-secondary py-2 small">
                         <div>
-                            <div>📅 {{ pago.fecha }}</div>
+                            <div>📅 {{ pago.fecha }} <span class="badge bg-dark border border-secondary text-info">{{ pago.metodo_pago }}</span></div>
                             <small class="text-muted">Por: {{ pago.registrado_por }}</small>
                         </div>
                         <div class="d-flex align-items-center gap-1">
@@ -64,23 +161,56 @@
                         </div>
                     </div>
                     {% else %}
-                    <small class="text-muted text-center">Sin abonos</small>
+                    <small class="text-muted text-center py-2">No se han registrado abonos aún.</small>
                     {% endfor %}
                 </div>
             </div>
 
             {% if p.completado %}
-                <div class="alert alert-success py-1 my-0 text-center small fw-bold">✓ Préstamo Pagado Totalmente</div>
+                <div class="alert alert-success py-2 my-0 text-center small fw-bold">
+                    ✓ Préstamo Cancelado en su Totalidad
+                </div>
             {% else %}
-                <form action="/pagar/{{ p.id }}" method="post">
-                    <div class="input-group">
-                        <span class="input-group-text bg-dark text-white border-secondary">S/</span>
-                        <input type="number" step="0.01" min="0.01" max="{{ p.saldo }}" name="monto"
-                               class="form-control bg-dark text-white border-secondary" placeholder="Monto" required>
-                        <button class="btn btn-success fw-bold" type="submit">💰 Cobrar</button>
+                <form action="/pagar/{{ p.id }}" method="post" id="form-pago-{{ p.id }}">
+                    <input type="hidden" name="cuota_id" id="cuota-id-{{ p.id }}" value="">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-dark text-white border-secondary">S/</span>
+                                <input type="number" step="0.01" min="0.01" max="{{ p.saldo }}"
+                                       id="monto-pago-{{ p.id }}" name="monto"
+                                       class="form-control bg-dark text-white border-secondary"
+                                       placeholder="Monto" required>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <select name="metodo_pago" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                <option value="Efectivo">Efectivo</option>
+                                <option value="Yape">Yape</option>
+                                <option value="Plin">Plin</option>
+                                <option value="Transferencia">Transf.</option>
+                            </select>
+                        </div>
+                        <div class="col-3">
+                            <button class="btn btn-sm btn-success w-100 fw-bold" type="submit">💰 Cobrar</button>
+                        </div>
                     </div>
                 </form>
             {% endif %}
         </div>
     </div>
 </div>
+
+<script>
+    function cargarAbono(prestamoId, cuotaId, saldoCuota) {
+        const inputMonto = document.getElementById('monto-pago-' + prestamoId);
+        const inputCuota = document.getElementById('cuota-id-' + prestamoId);
+        if (inputMonto) {
+            inputMonto.value = parseFloat(saldoCuota).toFixed(2);
+            inputMonto.focus();
+        }
+        if (inputCuota) {
+            inputCuota.value = cuotaId;
+        }
+    }
+</script>
