@@ -1,4 +1,3 @@
-"""Conexión y sesión de base de datos."""
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 
